@@ -1,0 +1,6 @@
+{
+  "name": "Registro de Notas",
+  "description": "Sistema profesional de registro de calificaciones, incidencias, estadísticas de rendimiento y generación de reportes con filtros avanzados.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
