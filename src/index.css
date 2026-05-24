@@ -15,7 +15,7 @@
 @media print {
   @page {
     size: letter;
-    margin: 0.8cm 1cm;
+    margin: 0.4cm 0.5cm;
   }
   .no-print {
     display: none !important;
@@ -24,13 +24,17 @@
     background: white !important;
     overflow: hidden !important;
     height: 100% !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   main {
     padding: 0 !important;
     margin: 0 !important;
     overflow: hidden !important;
+    height: 100% !important;
   }
   .ficha-page {
     border: none !important;
@@ -38,11 +42,58 @@
     page-break-inside: avoid !important;
     page-break-after: avoid !important;
     page-break-before: avoid !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    height: auto !important;
-    min-height: auto !important;
-    max-height: 100% !important;
+    margin: 0 auto !important;
+    padding: 0.4cm 0.5cm !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 27cm !important;
+    min-height: 27cm !important;
+    max-height: 27cm !important;
+    background: white !important;
+    color: black !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    zoom: 0.85 !important; /* Scale to fit letter size perfectly */
+  }
+
+  /* Compacting elements inside ficha-page for perfect single page print output */
+  .ficha-page h1 {
+    font-size: 15px !important;
+    margin-bottom: 2px !important;
+  }
+  .ficha-page p, .ficha-page span, .ficha-page div {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+  }
+  .ficha-page table th, .ficha-page table td {
+    padding: 4px 6px !important;
+    font-size: 9.5px !important;
+  }
+  .ficha-page .grid {
+    gap: 8px !important;
+  }
+  .ficha-page .space-y-4 > :not([class*="hidden"]) ~ :not([class*="hidden"]) {
+    margin-top: 8px !important;
+  }
+  .ficha-page .space-y-3.5 > :not([class*="hidden"]) ~ :not([class*="hidden"]) {
+    margin-top: 6px !important;
+  }
+  .ficha-page .space-y-3 > :not([class*="hidden"]) ~ :not([class*="hidden"]) {
+    margin-top: 5px !important;
+  }
+  .ficha-page .mt-5 {
+    margin-top: 8px !important;
+  }
+  .ficha-page .pt-6 {
+    padding-top: 8px !important;
+  }
+  .ficha-page .signature-font {
+    font-size: 24px !important;
+  }
+  .ficha-page .h-11 {
+    height: 24px !important;
   }
 }
 
