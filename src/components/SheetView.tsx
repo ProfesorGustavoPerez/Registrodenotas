@@ -108,7 +108,12 @@ export default function SheetView({
   onToggleHideInactive,
   onToggleListNumber,
 }: SheetViewProps) {
-  const [sortCriteria, setSortCriteria] = useState<"alphabetical" | "best" | "worst">("alphabetical");
+  const [sortColumn, setSortColumn] = useState<{
+    id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period";
+    index?: number;
+    direction: "asc" | "desc";
+  }>({ id: "name", direction: "asc" });
+
   const [activeDropdownStudentId, setActiveDropdownStudentId] = useState<string | null>(null);
 
   const gid = state.currentGradeId;
@@ -133,6 +138,56 @@ export default function SheetView({
   // Process standard data copy
   const baseStudents = state.data["T1"]?.[gid] || [];
 
+  const selectValue = useMemo(() => {
+    if (sortColumn.id === "name") {
+      return sortColumn.direction === "asc" ? "alphabetical" : "alphabetical-desc";
+    }
+    if (sortColumn.id === "final") {
+      return sortColumn.direction === "desc" ? "best" : "worst";
+    }
+    return "custom";
+  }, [sortColumn]);
+
+  const handleSelectSortChange = (val: string) => {
+    if (val === "alphabetical") {
+      setSortColumn({ id: "name", direction: "asc" });
+    } else if (val === "alphabetical-desc") {
+      setSortColumn({ id: "name", direction: "desc" });
+    } else if (val === "best") {
+      setSortColumn({ id: "final", direction: "desc" });
+    } else if (val === "worst") {
+      setSortColumn({ id: "final", direction: "asc" });
+    }
+  };
+
+  const toggleSort = (id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
+    setSortColumn((prev) => {
+      const isSame = prev.id === id && prev.index === index;
+      if (isSame) {
+        return {
+          id,
+          index,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      } else {
+        // Alumnos de A-Z por defecto, notas/promedios de Mayor a Menor por defecto
+        const defaultDir = id === "name" ? "asc" : "desc";
+        return { id, index, direction: defaultDir };
+      }
+    });
+  };
+
+  const renderSortIndicator = (id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
+    if (sortColumn.id !== id || sortColumn.index !== index) {
+      return <span className="text-slate-300 opacity-30 group-hover:opacity-100 transition-opacity ml-1 font-mono text-[9px] no-print">↕</span>;
+    }
+    return (
+      <span className="text-indigo-600 font-extrabold ml-1 font-mono text-[9px] no-print">
+        {sortColumn.direction === "asc" ? "▲" : "▼"}
+      </span>
+    );
+  };
+
   // Filter out students based on hideInactive flag
   const processedStudents = useMemo(() => {
     let list = [...baseStudents];
@@ -151,33 +206,73 @@ export default function SheetView({
       if (dummyA && !dummyB) return 1;
       if (!dummyA && dummyB) return -1;
       
-      const getVal = (s: Student) => {
-        if (state.currentTrim === "ANUAL") {
-          let totalSum = 0;
-          for (let i = 1; i <= count; i++) {
-            const ps = state.data[`T${i}`]?.[gid]?.find(x => x.id === s.id);
-            totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
-          }
-          return totalSum / count;
-        } else {
-          // Normal period
-          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
-          return ps ? calculateFinal(ps.notes, state.config) : 0;
-        }
-      };
+      let comparison = 0;
 
-      if (sortCriteria === "alphabetical") {
-        return a.name.localeCompare(b.name);
-      } else if (sortCriteria === "best") {
-        return getVal(b) - getVal(a);
-      } else if (sortCriteria === "worst") {
-        return getVal(a) - getVal(b);
+      if (sortColumn.id === "name") {
+        comparison = a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+      } else if (sortColumn.id === "final") {
+        const getFinalVal = (s: Student) => {
+          if (state.currentTrim === "ANUAL") {
+            let totalSum = 0;
+            for (let i = 1; i <= count; i++) {
+              const ps = state.data[`T${i}`]?.[gid]?.find(x => x.id === s.id);
+              totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
+            }
+            return totalSum / count;
+          } else {
+            const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+            return ps ? calculateFinal(ps.notes, state.config) : 0;
+          }
+        };
+        comparison = getFinalVal(a) - getFinalVal(b);
+      } else if (sortColumn.id === "note" && sortColumn.index !== undefined) {
+        const getNoteVal = (s: Student) => {
+          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const notes = ps ? ps.notes : s.notes || [];
+          return notes[sortColumn.index!] ?? 0;
+        };
+        comparison = getNoteVal(a) - getNoteVal(b);
+      } else if (sortColumn.id === "avgC") {
+        const getAvgC = (s: Student) => {
+          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const notes = ps ? ps.notes : s.notes || [];
+          return getAvg(notes.slice(0, 10));
+        };
+        comparison = getAvgC(a) - getAvgC(b);
+      } else if (sortColumn.id === "avgS") {
+        const getAvgS = (s: Student) => {
+          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const notes = ps ? ps.notes : s.notes || [];
+          return getAvg(notes.slice(10, 20));
+        };
+        comparison = getAvgS(a) - getAvgS(b);
+      } else if (sortColumn.id === "avgEx") {
+        const getAvgEx = (s: Student) => {
+          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const notes = ps ? ps.notes : s.notes || [];
+          const written = notes[23] ?? 0;
+          const rubric = notes[24] ?? 0;
+          return (written * 0.85) + (rubric * 0.15);
+        };
+        comparison = getAvgEx(a) - getAvgEx(b);
+      } else if (sortColumn.id === "period" && sortColumn.index !== undefined) {
+        const getPeriodVal = (s: Student) => {
+          const pStudent = state.data[`T${sortColumn.index! + 1}`]?.[gid]?.find(x => x.id === s.id);
+          return pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
+        };
+        comparison = getPeriodVal(a) - getPeriodVal(b);
       }
-      return 0;
+
+      // If values are equal, fallback to alphabetical
+      if (comparison === 0) {
+        return a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+      }
+
+      return sortColumn.direction === "asc" ? comparison : -comparison;
     });
 
     return list;
-  }, [baseStudents, state.hideInactive, state.currentTrim, sortCriteria, state.data, gid, count, state.config]);
+  }, [baseStudents, state.hideInactive, state.currentTrim, sortColumn, state.data, gid, count, state.config]);
 
   const colWidth = useMemo(() => {
     let maxCharCount = 14;
@@ -296,13 +391,17 @@ export default function SheetView({
           <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded shadow-2xs">
             <Sliders className="w-3 h-3 text-slate-400" />
             <select
-              value={sortCriteria}
-              onChange={(e) => setSortCriteria(e.target.value as any)}
+              value={selectValue}
+              onChange={(e) => handleSelectSortChange(e.target.value)}
               className="bg-transparent text-[10px] font-black uppercase focus:outline-none cursor-pointer text-slate-600 tracking-wider"
             >
-              <option value="alphabetical">Alfabético</option>
-              <option value="best">Mejores Notas</option>
-              <option value="worst">Riesgo Académico</option>
+              <option value="alphabetical">Nombre del Alumno (A → Z)</option>
+              <option value="alphabetical-desc">Nombre del Alumno (Z → A)</option>
+              <option value="best">Promedio Final (Mayor a Menor)</option>
+              <option value="worst">Promedio Final (Menor a Mayor)</option>
+              {selectValue === "custom" && (
+                <option value="custom">Orden Especial por Columna</option>
+              )}
             </select>
           </div>
 
@@ -441,18 +540,40 @@ export default function SheetView({
               {state.currentTrim === "ANUAL" ? (
                 <tr className="bg-gray-100 border-b border-gray-200 font-bold text-gray-700 uppercase tracking-wider text-center h-12">
                   <th
-                    className="left-0 z-50 bg-gray-200 border-r border-gray-200 text-left p-3 sticky font-black shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-b"
+                    className="left-0 z-50 bg-gray-200 border-r border-gray-200 text-left p-3 sticky font-black shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-b cursor-pointer select-none hover:bg-gray-300 transition-colors group/th"
                     style={{ position: "sticky", left: 0, minWidth: `${colWidth}px`, width: `${colWidth}px`, zIndex: 60 }}
+                    onClick={() => toggleSort("name")}
+                    title="Haga clic para ordenar por Nombre (Ascendente / Descendente)"
                   >
-                    Estudiante
+                    <div className="flex items-center justify-between">
+                      <span>Estudiante</span>
+                      {renderSortIndicator("name")}
+                    </div>
                   </th>
                   {Array.from({ length: count }).map((_, i) => (
-                    <th key={i} className="border-r border-gray-200 border-b bg-gray-50 text-gray-700 font-bold p-2 text-center" style={{ width: "110px", minWidth: "110px" }}>
-                      Periodo {i + 1}
+                    <th
+                      key={i}
+                      className="border-r border-gray-200 border-b bg-gray-50 text-gray-700 font-bold p-2 text-center cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      style={{ width: "110px", minWidth: "110px" }}
+                      onClick={() => toggleSort("period", i)}
+                      title={`Haga clic para ordenar por Periodo ${i + 1}`}
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>Periodo {i + 1}</span>
+                        {renderSortIndicator("period", i)}
+                      </div>
                     </th>
                   ))}
-                  <th className="bg-indigo-100 text-indigo-950 font-extrabold border-b text-center border-r border-gray-200 p-2" style={{ width: "160px", minWidth: "160px" }}>
-                    PROMEDIO ANUAL
+                  <th
+                    className="bg-indigo-100 text-indigo-950 font-extrabold border-b text-center border-r border-gray-200 p-2 cursor-pointer select-none hover:bg-indigo-200 transition-colors group/th"
+                    style={{ width: "160px", minWidth: "160px" }}
+                    onClick={() => toggleSort("final")}
+                    title="Haga clic para ordenar por Promedio Anual"
+                  >
+                    <div className="flex items-center justify-center gap-0.5">
+                      <span>PROMEDIO ANUAL</span>
+                      {renderSortIndicator("final")}
+                    </div>
                   </th>
                 </tr>
               ) : (
@@ -460,41 +581,76 @@ export default function SheetView({
                   {/* Primera fila de encabezados agrupados */}
                   <tr className="bg-slate-100 text-slate-800 font-bold uppercase tracking-wider text-center h-12">
                     <th
-                      className="left-0 z-50 bg-gray-200 border-r border-gray-300 border-b-2 text-left p-3 sticky font-black shadow-[2px_0_5px_rgba(0,0,0,0.06)]"
+                      className="left-0 z-50 bg-gray-200 border-r border-gray-300 border-b-2 text-left p-3 sticky font-black shadow-[2px_0_5px_rgba(0,0,0,0.06)] cursor-pointer select-none hover:bg-gray-300 transition-colors group/th"
                       rowSpan={2}
                       style={{ position: "sticky", left: 0, minWidth: `${colWidth}px`, width: `${colWidth}px`, zIndex: 60 }}
+                      onClick={() => toggleSort("name")}
+                      title="Haga clic para ordenar por Nombre (Ascendente / Descendente)"
                     >
-                      Estudiante ({processedStudents.filter(s => !s.name.includes("Estudiante")).length})
+                      <div className="flex items-center justify-between">
+                        <span>Estudiante ({processedStudents.filter(s => !s.name.includes("Estudiante")).length})</span>
+                        {renderSortIndicator("name")}
+                      </div>
                     </th>
-                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
                       {blockNames[0]} ({blockWeights[0]}%)
                     </th>
-                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
                       {blockNames[1]} ({blockWeights[1]}%)
                     </th>
-                    <th className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold" rowSpan={2} style={{ width: "100px", minWidth: "100px" }}>
-                      <div className="font-bold min-h-[24px] flex items-center justify-center" title={blockNames[2]}>
-                        {blockNames[2]}
+                    <th
+                      className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "100px", minWidth: "100px" }}
+                      onClick={() => toggleSort("note", 20)}
+                      title={`Haga clic para ordenar por ${blockNames[2]}`}
+                    >
+                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[2]}>
+                        <span>{blockNames[2]}</span>
+                        {renderSortIndicator("note", 20)}
                       </div>
                       <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[2]}%)</div>
                     </th>
-                    <th className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold" rowSpan={2} style={{ width: "100px", minWidth: "100px" }}>
-                      <div className="font-bold min-h-[24px] flex items-center justify-center" title={blockNames[3]}>
-                        {blockNames[3]}
+                    <th
+                      className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "100px", minWidth: "100px" }}
+                      onClick={() => toggleSort("note", 21)}
+                      title={`Haga clic para ordenar por ${blockNames[3]}`}
+                    >
+                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[3]}>
+                        <span>{blockNames[3]}</span>
+                        {renderSortIndicator("note", 21)}
                       </div>
                       <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[3]}%)</div>
                     </th>
-                    <th className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold" rowSpan={2} style={{ width: "100px", minWidth: "100px" }}>
-                      <div className="font-bold min-h-[24px] flex items-center justify-center" title={blockNames[4]}>
-                        {blockNames[4]}
+                    <th
+                      className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "100px", minWidth: "100px" }}
+                      onClick={() => toggleSort("note", 22)}
+                      title={`Haga clic para ordenar por ${blockNames[4]}`}
+                    >
+                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[4]}>
+                        <span>{blockNames[4]}</span>
+                        {renderSortIndicator("note", 22)}
                       </div>
                       <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[4]}%)</div>
                     </th>
-                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200" colSpan={3} style={{ width: "205px", minWidth: "205px" }}>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={3} style={{ width: "205px", minWidth: "205px" }}>
                       {blockNames[5]} ({blockWeights[5]}%)
                     </th>
-                    <th className="bg-emerald-100 text-emerald-950 border-b-2 font-black text-center text-xs p-2 border-r border-gray-300" rowSpan={2} style={{ width: "130px", minWidth: "130px" }}>
-                      PROMEDIO FINAL
+                    <th
+                      className="bg-emerald-100 text-emerald-950 border-b-2 font-black text-center text-xs p-2 border-r border-gray-300 cursor-pointer select-none hover:bg-emerald-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "130px", minWidth: "130px" }}
+                      onClick={() => toggleSort("final")}
+                      title="Haga clic para ordenar por Promedio Final"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>PROMEDIO FINAL</span>
+                        {renderSortIndicator("final")}
+                      </div>
                     </th>
                   </tr>
 
@@ -502,33 +658,91 @@ export default function SheetView({
                   <tr className="bg-slate-50 text-gray-600 font-bold text-[10px] text-center h-12 border-b-2 border-gray-200">
                     {/* Cotidianas columns */}
                     {Array.from({ length: 10 }).map((_, idx) => (
-                      <th key={`c-${idx}`} className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500" style={{ width: "62px", minWidth: "62px" }}>
-                        C{idx + 1}
+                      <th
+                        key={`c-${idx}`}
+                        className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                        style={{ width: "62px", minWidth: "62px" }}
+                        onClick={() => toggleSort("note", idx)}
+                        title={`Ordenar por Nota Cotidiana ${idx + 1}`}
+                      >
+                        <div className="flex items-center justify-center gap-0.5">
+                          <span>C{idx + 1}</span>
+                          {renderSortIndicator("note", idx)}
+                        </div>
                       </th>
                     ))}
-                    <th className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px]" style={{ width: "72px", minWidth: "72px" }}>
-                      PROM C
+                    <th
+                      className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
+                      style={{ width: "72px", minWidth: "72px" }}
+                      onClick={() => toggleSort("avgC")}
+                      title="Ordenar por Promedio Cotidiano"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>PROM C</span>
+                        {renderSortIndicator("avgC")}
+                      </div>
                     </th>
 
                     {/* Santillana columns */}
                     {Array.from({ length: 10 }).map((_, idx) => (
-                      <th key={`s-${idx}`} className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500" style={{ width: "62px", minWidth: "62px" }}>
-                        S{idx + 1}
+                      <th
+                        key={`s-${idx}`}
+                        className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                        style={{ width: "62px", minWidth: "62px" }}
+                        onClick={() => toggleSort("note", idx + 10)}
+                        title={`Ordenar por Nota Santillana ${idx + 1}`}
+                      >
+                        <div className="flex items-center justify-center gap-0.5">
+                          <span>S{idx + 1}</span>
+                          {renderSortIndicator("note", idx + 10)}
+                        </div>
                       </th>
                     ))}
-                    <th className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px]" style={{ width: "72px", minWidth: "72px" }}>
-                      PROM S
+                    <th
+                      className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
+                      style={{ width: "72px", minWidth: "72px" }}
+                      onClick={() => toggleSort("avgS")}
+                      title="Ordenar por Promedio Santillana"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>PROM S</span>
+                        {renderSortIndicator("avgS")}
+                      </div>
                     </th>
 
                     {/* Examen sub columns */}
-                    <th className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500" style={{ width: "65px", minWidth: "65px" }}>
-                      Escrito
+                    <th
+                      className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                      style={{ width: "65px", minWidth: "65px" }}
+                      onClick={() => toggleSort("note", 23)}
+                      title="Ordenar por Examen Escrito"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>Escrito</span>
+                        {renderSortIndicator("note", 23)}
+                      </div>
                     </th>
-                    <th className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500" style={{ width: "65px", minWidth: "65px" }}>
-                      Rúbrica
+                    <th
+                      className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                      style={{ width: "65px", minWidth: "65px" }}
+                      onClick={() => toggleSort("note", 24)}
+                      title="Ordenar por Examen Rúbrica"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>Rúbrica</span>
+                        {renderSortIndicator("note", 24)}
+                      </div>
                     </th>
-                    <th className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px]" style={{ width: "75px", minWidth: "75px" }}>
-                      PROM EX
+                    <th
+                      className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
+                      style={{ width: "75px", minWidth: "75px" }}
+                      onClick={() => toggleSort("avgEx")}
+                      title="Ordenar por Promedio Examen"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>PROM EX</span>
+                        {renderSortIndicator("avgEx")}
+                      </div>
                     </th>
                   </tr>
                 </>

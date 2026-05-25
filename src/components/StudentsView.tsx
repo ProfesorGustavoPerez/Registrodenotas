@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { AppState, Student } from "../types";
 import { calculateFinal, getStudentCompliance, getStudentRank, getAvg } from "../utils";
 import StudentActionsDropdown from "./StudentActionsDropdown";
-import { Search, X, Users, AlertCircle, ChevronDown, ChevronUp, BookOpen, Pencil } from "lucide-react";
+import { 
+  Search, X, Users, AlertCircle, ChevronDown, ChevronUp, BookOpen, 
+  Pencil, LayoutGrid, List, Sliders 
+} from "lucide-react";
 
 interface GradeInputProps {
   value: number | null;
@@ -76,6 +79,14 @@ interface StudentsViewProps {
   onOpenReason: (studentId: string, noteIndex: number, overrideGradeId?: string) => void;
 }
 
+const getNoteCellWidth = (idx: number): { width: string; minWidth: string } => {
+  if (idx >= 0 && idx <= 9) return { width: "62px", minWidth: "62px" }; // Cotidianas
+  if (idx >= 10 && idx <= 19) return { width: "62px", minWidth: "62px" }; // Santillana
+  if (idx >= 20 && idx <= 22) return { width: "100px", minWidth: "100px" }; // Trabajo, Proyecto, Holistica
+  if (idx >= 23 && idx <= 24) return { width: "65px", minWidth: "65px" }; // Escrito, Rubrica
+  return { width: "62px", minWidth: "62px" };
+};
+
 export default function StudentsView({
   state,
   onRename,
@@ -89,45 +100,189 @@ export default function StudentsView({
   onOpenReason,
 }: StudentsViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid"); // Defaults to "grid" as requested for fast editing!
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [activeDropdownStudentId, setActiveDropdownStudentId] = useState<string | null>(null);
+
+  const [sortColumn, setSortColumn] = useState<{
+    id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period";
+    index?: number;
+    direction: "asc" | "desc";
+  }>({ id: "name", direction: "asc" });
 
   const enabledGrades = state.config.grades.filter(g => g.enabled);
 
-  // Collect all valid/real students across all active groups
-  const allStudentsList: { student: Student; gradeId: string; gradeLabel: string }[] = [];
+  // Re-read block metadata from config
+  const blockNames = state.config.blockNames;
+  const blockWeights = state.config.blockWeights;
 
-  enabledGrades.forEach(g => {
-    const list = state.data["T1"]?.[g.id] || [];
-    list.forEach(s => {
-      // Filter out raw placeholders if desired, or let them be renamed
-      const isPlaceholder = s.name.includes("Estudiante");
-      const isHiddenInactive = hideInactive && s.isDisabled;
-      
-      if (!isPlaceholder && !isHiddenInactive) {
-        allStudentsList.push({
-          student: s,
-          gradeId: g.id,
-          gradeLabel: g.label,
-        });
+  const toggleSort = (id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
+    setSortColumn((prev) => {
+      const isSame = prev.id === id && prev.index === index;
+      if (isSame) {
+        return {
+          id,
+          index,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      } else {
+        const defaultDir = id === "name" ? "asc" : "desc";
+        return { id, index, direction: defaultDir };
       }
     });
-  });
+  };
 
-  // Filter based on search term (student name)
-  const filteredStudents = allStudentsList.filter(item =>
-    item.student.name.toLowerCase().includes(searchTerm.toLowerCase().trim())
-  );
+  const renderSortIndicator = (id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
+    if (sortColumn.id !== id || sortColumn.index !== index) {
+      return <span className="text-slate-300 opacity-30 group-hover:opacity-100 transition-opacity ml-1 font-mono text-[9px]">↕</span>;
+    }
+    return (
+      <span className="text-indigo-600 font-extrabold ml-1 font-mono text-[9px]">
+        {sortColumn.direction === "asc" ? "▲" : "▼"}
+      </span>
+    );
+  };
 
-  // Sorting alphabetically by name
-  filteredStudents.sort((a, b) => a.student.name.localeCompare(b.student.name));
+  // Filter and sort students list with high performance
+  const processedStudents = useMemo(() => {
+    // Collect all valid/real students across all active groups
+    let list: { student: Student; gradeId: string; gradeLabel: string }[] = [];
+
+    enabledGrades.forEach(g => {
+      const gStudents = state.data["T1"]?.[g.id] || [];
+      gStudents.forEach(s => {
+        const isPlaceholder = s.name.includes("Estudiante");
+        const isHiddenInactive = hideInactive && s.isDisabled;
+        
+        if (!isPlaceholder && !isHiddenInactive) {
+          list.push({
+            student: s,
+            gradeId: g.id,
+            gradeLabel: g.label,
+          });
+        }
+      });
+    });
+
+    // Filter based on search term (student name or group label or subject representation)
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      list = list.filter(item => {
+        const gradeSubject = state.config.grades.find(x => x.id === item.gradeId)?.useGlobalSubject 
+          ? state.config.subject 
+          : state.config.grades.find(x => x.id === item.gradeId)?.subject || "";
+        return (
+          item.student.name.toLowerCase().includes(q) ||
+          item.gradeLabel.toLowerCase().includes(q) ||
+          gradeSubject.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    // Sort list based on sortColumn state
+    list.sort((a, b) => {
+      let comparison = 0;
+
+      const pA = state.data[state.currentTrim === "ANUAL" ? "T1" : state.currentTrim]?.[a.gradeId]?.find(x => x.id === a.student.id) || a.student;
+      const pB = state.data[state.currentTrim === "ANUAL" ? "T1" : state.currentTrim]?.[b.gradeId]?.find(x => x.id === b.student.id) || b.student;
+
+      if (sortColumn.id === "name") {
+        comparison = pA.name.localeCompare(pB.name, "es", { sensitivity: "base" });
+      } else if (sortColumn.id === "final") {
+        const getFinalVal = (item: { student: Student; gradeId: string }) => {
+          const g = state.config.grades.find(x => x.id === item.gradeId);
+          const count = g ? (g.useGlobalPeriods ? state.config.periodCount : g.periodCount) : state.config.periodCount;
+          if (state.currentTrim === "ANUAL") {
+            let totalSum = 0;
+            for (let i = 1; i <= count; i++) {
+              const ps = state.data[`T${i}`]?.[item.gradeId]?.find(x => x.id === item.student.id);
+              totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
+            }
+            return totalSum / count;
+          } else {
+            const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+            return ps ? calculateFinal(ps.notes, state.config) : 0;
+          }
+        };
+        comparison = getFinalVal(a) - getFinalVal(b);
+      } else if (sortColumn.id === "note" && sortColumn.index !== undefined) {
+        const getNoteVal = (item: { student: Student; gradeId: string }) => {
+          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const notes = ps ? ps.notes : item.student.notes || [];
+          return notes[sortColumn.index!] ?? 0;
+        };
+        comparison = getNoteVal(a) - getNoteVal(b);
+      } else if (sortColumn.id === "avgC") {
+        const getAvgC = (item: { student: Student; gradeId: string }) => {
+          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const notes = ps ? ps.notes : item.student.notes || [];
+          return getAvg(notes.slice(0, 10));
+        };
+        comparison = getAvgC(a) - getAvgC(b);
+      } else if (sortColumn.id === "avgS") {
+        const getAvgS = (item: { student: Student; gradeId: string }) => {
+          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const notes = ps ? ps.notes : item.student.notes || [];
+          return getAvg(notes.slice(10, 20));
+        };
+        comparison = getAvgS(a) - getAvgS(b);
+      } else if (sortColumn.id === "avgEx") {
+        const getAvgEx = (item: { student: Student; gradeId: string }) => {
+          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const notes = ps ? ps.notes : item.student.notes || [];
+          const written = notes[23] ?? 0;
+          const rubric = notes[24] ?? 0;
+          return (written * 0.85) + (rubric * 0.15);
+        };
+        comparison = getAvgEx(a) - getAvgEx(b);
+      } else if (sortColumn.id === "period" && sortColumn.index !== undefined) {
+        const getPeriodVal = (item: { student: Student; gradeId: string }) => {
+          const pStudent = state.data[`T${sortColumn.index! + 1}`]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          return pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
+        };
+        comparison = getPeriodVal(a) - getPeriodVal(b);
+      }
+
+      if (comparison === 0) {
+        return pA.name.localeCompare(pB.name, "es", { sensitivity: "base" });
+      }
+
+      return sortColumn.direction === "asc" ? comparison : -comparison;
+    });
+
+    return list;
+  }, [state.data, state.config, state.currentTrim, hideInactive, searchTerm, sortColumn, enabledGrades]);
+
+  const selectValue = useMemo(() => {
+    if (sortColumn.id === "name") {
+      return sortColumn.direction === "asc" ? "alphabetical" : "alphabetical-desc";
+    }
+    if (sortColumn.id === "final") {
+      return sortColumn.direction === "desc" ? "best" : "worst";
+    }
+    return "custom";
+  }, [sortColumn]);
+
+  const handleSelectSortChange = (val: string) => {
+    if (val === "alphabetical") {
+      setSortColumn({ id: "name", direction: "asc" });
+    } else if (val === "alphabetical-desc") {
+      setSortColumn({ id: "name", direction: "desc" });
+    } else if (val === "best") {
+      setSortColumn({ id: "final", direction: "desc" });
+    } else if (val === "worst") {
+      setSortColumn({ id: "final", direction: "asc" });
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center flex-wrap gap-4 no-print">
-        <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+      {/* Search and control bar */}
+      <div className="flex justify-between items-center flex-wrap gap-4 no-print bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+        <div className="flex items-center gap-3 flex-1 min-w-[300px]">
           <h2 className="text-lg font-bold text-[var(--primary)] uppercase tracking-wider flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Buscador General de Estudiantes
+            Buscador y Planilla de Estudiantes
           </h2>
           
           <div className="relative flex-1 max-w-sm">
@@ -136,15 +291,15 @@ export default function StudentsView({
             </span>
             <input
               type="text"
-              placeholder="Buscar estudiante por nombre..."
+              placeholder="Buscar estudiante, materia o grupo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] text-gray-800"
+              className="w-full pl-9 pr-8 py-1.5 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] text-gray-850"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -152,31 +307,551 @@ export default function StudentsView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold text-gray-500 uppercase">Consultar Periodo:</label>
-          <select
-            value={state.currentTrim}
-            onChange={(e) => onPeriodChange(e.target.value)}
-            className="px-3 py-1 bg-white border border-gray-300 rounded text-sm font-semibold select-custom"
-          >
-            {Array.from({ length: state.config.periodCount }, (_, i) => (
-              <option key={i} value={`T${i + 1}`}>
-                Periodo {i + 1}
-              </option>
-            ))}
-            <option value="ANUAL">Resumen Anual</option>
-          </select>
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* View Mode Switching Tabs */}
+          <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-md shadow-3xs">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-1.5 px-3 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "grid"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+              title="Editar directamente todas las notas en una planilla unificada"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Cuadro de Notas
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 px-3 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "list"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+              title="Ver buscador individual tradicional con resumen de rendimiento"
+            >
+              <List className="w-3.5 h-3.5" />
+              Resumen
+            </button>
+          </div>
+
+          {/* Quick Sorting Dropdown */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1.5 rounded shadow-2xs">
+            <Sliders className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={selectValue}
+              onChange={(e) => handleSelectSortChange(e.target.value)}
+              className="bg-transparent text-[10px] font-black uppercase focus:outline-none cursor-pointer text-slate-600 tracking-wider"
+            >
+              <option value="alphabetical">Alumno (A → Z)</option>
+              <option value="alphabetical-desc">Alumno (Z → A)</option>
+              <option value="best">Promedio (Mayor a Menor)</option>
+              <option value="worst">Promedio (Menor a Mayor)</option>
+              {selectValue === "custom" && (
+                <option value="custom">Orden Especial por Columna</option>
+              )}
+            </select>
+          </div>
+
+          {/* Period selector */}
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Periodo:</label>
+            <select
+              value={state.currentTrim}
+              onChange={(e) => onPeriodChange(e.target.value)}
+              className="px-3 py-1 bg-white border border-gray-300 rounded text-xs font-bold uppercase select-custom cursor-pointer"
+            >
+              {Array.from({ length: state.config.periodCount }, (_, i) => (
+                <option key={i} value={`T${i + 1}`}>
+                  Periodo {i + 1}
+                </option>
+              ))}
+              <option value="ANUAL">Resumen Anual</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {filteredStudents.length === 0 ? (
+      {processedStudents.length === 0 ? (
         <div className="bg-white border border-gray-200 p-8 rounded-lg text-center font-medium shadow-xs text-gray-500 flex flex-col items-center gap-2">
           <AlertCircle className="w-8 h-8 text-gray-400" />
           {searchTerm.trim()
             ? `No se encontraron estudiantes que coincidan con "${searchTerm}".`
             : "No hay estudiantes registrados o habilitados en ningún grupo."}
         </div>
+      ) : viewMode === "grid" ? (
+        /* ================== GRID VIEW MODE (Spreadsheet) ================== */
+        <div className="overflow-x-auto bg-white border border-slate-200 rounded-lg shadow-sm no-print">
+          <table className="w-full border-collapse text-left text-xs text-gray-800">
+            <thead>
+              {state.currentTrim === "ANUAL" ? (
+                /* Header layout for ANUAL view */
+                <tr className="bg-gray-100 border-b border-gray-200 font-bold text-gray-700 uppercase tracking-wider text-center h-12">
+                  <th
+                    className="left-0 z-50 bg-gray-200 border-r border-gray-250 text-left p-3 sticky font-black shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-b cursor-pointer select-none hover:bg-gray-300 transition-colors group/th"
+                    style={{ position: "sticky", left: 0, minWidth: "260px", width: "260px", zIndex: 60 }}
+                    onClick={() => toggleSort("name")}
+                    title="Ordenar por Nombre de Estudiante"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>Estudiante / Grupo Académico</span>
+                      {renderSortIndicator("name")}
+                    </div>
+                  </th>
+                  {Array.from({ length: state.config.periodCount }).map((_, i) => (
+                    <th
+                      key={i}
+                      className="border-r border-gray-200 border-b bg-gray-50 text-gray-700 font-bold p-2 text-center cursor-pointer select-none hover:bg-slate-250 transition-colors group/th"
+                      style={{ width: "110px", minWidth: "110px" }}
+                      onClick={() => toggleSort("period", i)}
+                      title={`Ordenar por notas del Periodo ${i + 1}`}
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>Periodo {i + 1}</span>
+                        {renderSortIndicator("period", i)}
+                      </div>
+                    </th>
+                  ))}
+                  <th
+                    className="bg-indigo-100 text-indigo-950 font-extrabold border-b text-center border-r border-gray-200 p-2 cursor-pointer select-none hover:bg-indigo-200 transition-colors group/th"
+                    style={{ width: "160px", minWidth: "160px" }}
+                    onClick={() => toggleSort("final")}
+                    title="Ordenar por Promedio Anual final"
+                  >
+                    <div className="flex items-center justify-center gap-0.5">
+                      <span>PROMEDIO ANUAL</span>
+                      {renderSortIndicator("final")}
+                    </div>
+                  </th>
+                </tr>
+              ) : (
+                /* Header layout for interactive Normal Period view */
+                <>
+                  <tr className="bg-slate-100 text-slate-800 font-bold uppercase tracking-wider text-center h-12">
+                    <th
+                      className="left-0 z-50 bg-gray-200 border-r border-gray-300 border-b-2 text-left p-3 sticky font-black shadow-[2px_0_5px_rgba(0,0,0,0.06)] cursor-pointer select-none hover:bg-gray-300 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ position: "sticky", left: 0, minWidth: "260px", width: "260px", zIndex: 60 }}
+                      onClick={() => toggleSort("name")}
+                      title="Ordenar por Nombre de Estudiante"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>Estudiante / Grupo Académico</span>
+                        {renderSortIndicator("name")}
+                      </div>
+                    </th>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
+                      {blockNames[0]} ({blockWeights[0]}%)
+                    </th>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
+                      {blockNames[1]} ({blockWeights[1]}%)
+                    </th>
+                    <th
+                      className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "100px", minWidth: "100px" }}
+                      onClick={() => toggleSort("note", 20)}
+                      title={`Ordenar por ${blockNames[2]}`}
+                    >
+                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[2]}>
+                        <span>{blockNames[2]}</span>
+                        {renderSortIndicator("note", 20)}
+                      </div>
+                      <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[2]}%)</div>
+                    </th>
+                    <th
+                      className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "100px", minWidth: "100px" }}
+                      onClick={() => toggleSort("note", 21)}
+                      title={`Ordenar por ${blockNames[3]}`}
+                    >
+                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[3]}>
+                        <span>{blockNames[3]}</span>
+                        {renderSortIndicator("note", 21)}
+                      </div>
+                      <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[3]}%)</div>
+                    </th>
+                    <th
+                      className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
+                      rowSpan={2}
+                      style={{ width: "100px", minWidth: "100px" }}
+                      onClick={() => toggleSort("note", 22)}
+                      title={`Ordenar por ${blockNames[4]}`}
+                    >
+                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[4]}>
+                        <span>{blockNames[4]}</span>
+                        {renderSortIndicator("note", 22)}
+                      </div>
+                      <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[4]}%)</div>
+                    </th>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={3} style={{ width: "205px", minWidth: "205px" }}>
+                      {blockNames[5]} ({blockWeights[5]}%)
+                    </th>
+                    <th
+                      className="bg-emerald-100 text-emerald-950 border-b-2 font-black text-center text-xs p-2 border-r border-gray-300 cursor-pointer select-none hover:bg-emerald-200 transition-colors group/th animate-pulse-once"
+                      rowSpan={2}
+                      style={{ width: "130px", minWidth: "130px" }}
+                      onClick={() => toggleSort("final")}
+                      title="Ordenar por Promedio Final"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>PROMEDIO FINAL</span>
+                        {renderSortIndicator("final")}
+                      </div>
+                    </th>
+                  </tr>
+
+                  <tr className="bg-slate-50 text-gray-600 font-bold text-[10px] text-center h-12 border-b-2 border-gray-200">
+                    {/* Cotidianas columns */}
+                    {Array.from({ length: 10 }).map((_, idx) => (
+                      <th
+                        key={`c-${idx}`}
+                        className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                        style={{ width: "62px", minWidth: "62px" }}
+                        onClick={() => toggleSort("note", idx)}
+                        title={`Ordenar por Nota Cotidiana ${idx + 1}`}
+                      >
+                        <div className="flex items-center justify-center gap-0.5">
+                          <span>C{idx + 1}</span>
+                          {renderSortIndicator("note", idx)}
+                        </div>
+                      </th>
+                    ))}
+                    <th
+                      className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
+                      style={{ width: "72px", minWidth: "72px" }}
+                      onClick={() => toggleSort("avgC")}
+                      title="Ordenar por Promedio Cotidiano"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>PROM C</span>
+                        {renderSortIndicator("avgC")}
+                      </div>
+                    </th>
+
+                    {/* Santillana columns */}
+                    {Array.from({ length: 10 }).map((_, idx) => (
+                      <th
+                        key={`s-${idx}`}
+                        className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                        style={{ width: "62px", minWidth: "62px" }}
+                        onClick={() => toggleSort("note", idx + 10)}
+                        title={`Ordenar por Nota Santillana ${idx + 1}`}
+                      >
+                        <div className="flex items-center justify-center gap-0.5">
+                          <span>S{idx + 1}</span>
+                          {renderSortIndicator("note", idx + 10)}
+                        </div>
+                      </th>
+                    ))}
+                    <th
+                      className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
+                      style={{ width: "72px", minWidth: "72px" }}
+                      onClick={() => toggleSort("avgS")}
+                      title="Ordenar por Promedio Santillana"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>PROM S</span>
+                        {renderSortIndicator("avgS")}
+                      </div>
+                    </th>
+
+                    {/* Examen sub columns */}
+                    <th
+                      className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                      style={{ width: "65px", minWidth: "65px" }}
+                      onClick={() => toggleSort("note", 23)}
+                      title="Ordenar por Examen Escrito"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>Escrito</span>
+                        {renderSortIndicator("note", 23)}
+                      </div>
+                    </th>
+                    <th
+                      className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                      style={{ width: "65px", minWidth: "65px" }}
+                      onClick={() => toggleSort("note", 24)}
+                      title="Ordenar por Examen Rúbrica"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>Rúbrica</span>
+                        {renderSortIndicator("note", 24)}
+                      </div>
+                    </th>
+                    <th
+                      className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
+                      style={{ width: "75px", minWidth: "75px" }}
+                      onClick={() => toggleSort("avgEx")}
+                      title="Ordenar por Promedio de Examen"
+                    >
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>PROM EX</span>
+                        {renderSortIndicator("avgEx")}
+                      </div>
+                    </th>
+                  </tr>
+                </>
+              )}
+            </thead>
+
+            <tbody className="divide-y divide-gray-200">
+              {processedStudents.map((item, visualSidx) => {
+                const s = item.student;
+                const gid = item.gradeId;
+                const gradeLabel = item.gradeLabel;
+                const isPlaceholder = s.name.includes("Estudiante");
+
+                // Retrieve active period student record
+                const activeStudent = state.currentTrim !== "ANUAL"
+                  ? (state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id) || s)
+                  : s;
+
+                const notes = activeStudent.notes || Array(25).fill(0);
+                const reasons = activeStudent.reasons || Array(25).fill("");
+
+                // Compliance metrics & Rank info
+                const compliance = getStudentCompliance(notes, reasons);
+                const rankInfo = getStudentRank(s.id, gid, state.currentTrim, state.data, state.config);
+
+                // If period is ANUAL
+                if (state.currentTrim === "ANUAL") {
+                  let totalSum = 0;
+                  const g = state.config.grades.find(x => x.id === gid);
+                  const count = g ? (g.useGlobalPeriods ? state.config.periodCount : g.periodCount) : state.config.periodCount;
+
+                  return (
+                    <tr key={`${s.id}-anual-${visualSidx}`} className="group hover:bg-slate-50 transition-colors h-14">
+                      {/* Sticky Alumno column */}
+                      <td
+                        className={`left-0 border-r border-gray-200 font-bold px-2.5 py-3 text-left sticky shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] transition-colors duration-150 ${
+                          s.isDisabled 
+                            ? "bg-slate-100/100 text-gray-400 italic" 
+                            : "bg-white text-slate-800 group-hover:bg-slate-50"
+                        }`}
+                        style={{ position: "sticky", left: 0, minWidth: "260px", width: "260px", zIndex: activeDropdownStudentId === s.id ? 55 : 22 }}
+                      >
+                        <div className="flex justify-between items-center w-full h-full gap-1">
+                          <div className="flex flex-col min-w-0 flex-1 leading-tight">
+                            <span className="truncate text-slate-900 font-extrabold text-xs" title={s.name}>
+                              {s.name}
+                            </span>
+                            <span className="inline-flex items-center text-[9px] font-black uppercase text-indigo-700 tracking-wider mt-0.5">
+                              {gradeLabel}
+                            </span>
+                          </div>
+                          <div className="flex-shrink-0 ml-1 opacity-60 hover:opacity-100 transition-opacity">
+                            <StudentActionsDropdown
+                              student={s}
+                              onRename={(sid) => onRename(gid, sid)}
+                              onToggleStatus={(sid) => onToggleStatus(gid, sid)}
+                              onMigrate={(sid) => onMigrate(gid, sid)}
+                              onViewReport={(sid) => onViewReport(gid, sid)}
+                              onDelete={(sid) => onDelete(gid, sid)}
+                              alignLeft={true}
+                              onOpenChange={(isOpen) => setActiveDropdownStudentId(isOpen ? s.id : null)}
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {Array.from({ length: state.config.periodCount }).map((_, idx) => {
+                        const pNum = idx + 1;
+                        const pStudent = state.data[`T${pNum}`]?.[gid]?.find(x => x.id === s.id);
+                        const final = pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
+                        totalSum += final;
+                        return (
+                          <td
+                            key={idx}
+                            className={`border-r border-gray-200 text-center font-bold text-sm h-12 ${
+                              s.isDisabled 
+                                ? "bg-slate-50/50 text-gray-400 select-none opacity-30 pointer-events-none" 
+                                : final < 6.5 ? "text-red-650 bg-red-50/10" : "text-emerald-700"
+                            }`}
+                            style={{ width: "110px", minWidth: "110px" }}
+                          >
+                            {final.toFixed(1)}
+                          </td>
+                        );
+                      })}
+
+                      {/* annual average */}
+                      <td
+                        className={`text-center font-black text-base h-12 ${
+                          s.isDisabled 
+                            ? "bg-slate-100/50 text-gray-400 select-none opacity-30" 
+                            : totalSum / count < 6.5 ? "text-red-750 bg-red-50/20" : "text-emerald-800 bg-emerald-50/20"
+                        }`}
+                        style={{ width: "160px", minWidth: "160px" }}
+                      >
+                        {(totalSum / count).toFixed(1)}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // Normal view rows
+                const finalScore = calculateFinal(notes, state.config);
+                const avgC = getAvg(notes.slice(0, 10));
+                const avgS = getAvg(notes.slice(10, 20));
+                const examEscrito = notes[23] ?? 0;
+                const examRubrica = notes[24] ?? 0;
+                const avgEx = (examEscrito * 0.85) + (examRubrica * 0.15);
+
+                const gradeSubject = state.config.grades.find(x => x.id === gid)?.useGlobalSubject 
+                  ? state.config.subject 
+                  : state.config.grades.find(x => x.id === gid)?.subject || "";
+
+                return (
+                  <tr key={`${s.id}-${visualSidx}`} className="group hover:bg-slate-50/80 transition-colors h-14">
+                    {/* Alumno Sticky left */}
+                    <td
+                      className={`left-0 border-r border-gray-200 font-semibold px-2.5 py-3 sticky shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] text-left transition-colors duration-150 ${
+                        s.isDisabled 
+                          ? "bg-slate-100/100 text-gray-400 italic" 
+                          : "bg-white text-slate-800 group-hover:bg-slate-50"
+                      }`}
+                      style={{ position: "sticky", left: 0, minWidth: "260px", width: "260px", zIndex: activeDropdownStudentId === s.id ? 55 : 22 }}
+                    >
+                      <div className="flex justify-between items-center w-full h-full gap-1">
+                        <div className="flex flex-col min-w-0 flex-1 leading-tight">
+                          <span className="truncate text-slate-900 font-extrabold text-xs" title={s.name}>
+                            {s.name}
+                          </span>
+                          <span className="text-[9px] font-bold text-gray-400 block truncate uppercase mt-0.5" title={`${gradeLabel} • ${gradeSubject}`}>
+                            <span className="text-emerald-800 font-extrabold">{gradeLabel}</span> • {gradeSubject}
+                          </span>
+                        </div>
+                        <div className="flex-shrink-0 ml-1 opacity-60 hover:opacity-100 transition-opacity">
+                          <StudentActionsDropdown
+                            student={s}
+                            onRename={(sid) => onRename(gid, sid)}
+                            onToggleStatus={(sid) => onToggleStatus(gid, sid)}
+                            onMigrate={(sid) => onMigrate(gid, sid)}
+                            onViewReport={(sid) => onViewReport(gid, sid)}
+                            onDelete={(sid) => onDelete(gid, sid)}
+                            alignLeft={true}
+                            onOpenChange={(isOpen) => setActiveDropdownStudentId(isOpen ? s.id : null)}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Note input cells */}
+                    {notes.map((noteVal, noteIdx) => {
+                      const reason = reasons[noteIdx];
+                      const isPermiso = reason && reason.startsWith("Presentó Permiso");
+                      const cellStyle = getNoteCellWidth(noteIdx);
+                      const classNameExtra = (noteIdx >= 20 && noteIdx <= 22) ? "bg-slate-50/40" : "";
+
+                      const cellElement = (
+                        <td
+                          key={noteIdx}
+                          className={`border-r border-gray-200 text-center font-semibold p-0 ${classNameExtra} ${
+                            s.isDisabled ? "opacity-30 pointer-events-none select-none bg-slate-50/50" : ""
+                          }`}
+                          style={cellStyle}
+                        >
+                          <div className="relative flex items-stretch h-12 w-full focus-within:bg-blue-50/80 transition-colors">
+                            <GradeInput
+                              value={noteVal}
+                              onChange={(val) => onUpdateNote(s.id, noteIdx, val, gid)}
+                            />
+                            <button
+                              onClick={() => onOpenReason(s.id, noteIdx, gid)}
+                              className={`w-3.5 flex items-center justify-center text-[8px] font-black border-l border-gray-100 transition-colors ${
+                                reason
+                                  ? isPermiso
+                                    ? "bg-emerald-500 text-white"
+                                    : "bg-amber-400 text-white"
+                                  : "bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+                              }`}
+                              title={reason || "Haga clic para agregar observación"}
+                            >
+                              i
+                            </button>
+                          </div>
+                        </td>
+                      );
+
+                      if (noteIdx === 9) {
+                        return (
+                          <React.Fragment key={`cell-block-c-${noteIdx}`}>
+                            {cellElement}
+                            <td 
+                              className={`font-black text-center border-r border-gray-300 text-sm h-12 ${
+                                s.isDisabled 
+                                  ? "bg-slate-100/50 text-gray-400 select-none opacity-30" 
+                                  : "bg-blue-50 text-blue-800"
+                              }`}
+                              style={{ width: "72px", minWidth: "72px" }}
+                            >
+                              {avgC.toFixed(1)}
+                            </td>
+                          </React.Fragment>
+                        );
+                      }
+
+                      if (noteIdx === 19) {
+                        return (
+                          <React.Fragment key={`cell-block-s-${noteIdx}`}>
+                            {cellElement}
+                            <td 
+                              className={`font-black text-center border-r border-gray-300 text-sm h-12 ${
+                                s.isDisabled 
+                                  ? "bg-slate-100/50 text-gray-400 select-none opacity-30" 
+                                  : "bg-blue-50 text-blue-800"
+                              }`}
+                              style={{ width: "72px", minWidth: "72px" }}
+                            >
+                              {avgS.toFixed(1)}
+                            </td>
+                          </React.Fragment>
+                        );
+                      }
+
+                      if (noteIdx === 24) {
+                        return (
+                          <React.Fragment key={`cell-block-ex-${noteIdx}`}>
+                            {cellElement}
+                            <td 
+                              className={`font-black text-center border-r border-gray-300 text-sm h-12 ${
+                                s.isDisabled 
+                                  ? "bg-slate-100/50 text-gray-400 select-none opacity-30" 
+                                  : "bg-blue-50 text-blue-800"
+                              }`}
+                              style={{ width: "75px", minWidth: "75px" }}
+                            >
+                              {avgEx.toFixed(1)}
+                            </td>
+                          </React.Fragment>
+                        );
+                      }
+
+                      return cellElement;
+                    })}
+
+                    {/* Final grade of the period */}
+                    <td
+                      className={`text-center font-black text-base h-12 ${
+                        s.isDisabled
+                          ? "bg-slate-100/50 text-gray-400 select-none opacity-30"
+                          : finalScore < 6.5 ? "text-red-700 bg-red-50/20" : "text-emerald-800 bg-emerald-50/20"
+                      }`}
+                      style={{ width: "130px", minWidth: "130px" }}
+                    >
+                      {finalScore.toFixed(1)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ) : (
+        /* ================== CLASSIC LIST VIEW MODE ================== */
         <div className="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-xs no-print">
           <table className="w-full border-collapse text-left text-sm text-gray-800">
             <thead>
@@ -190,12 +865,10 @@ export default function StudentsView({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredStudents.map(({ student, gradeId, gradeLabel }, idx) => {
-                // Fetch proper student details for the selected period
+              {processedStudents.map(({ student, gradeId, gradeLabel }, idx) => {
                 const period = state.currentTrim === "ANUAL" ? "T1" : state.currentTrim;
                 const pStudent = state.data[period]?.[gradeId]?.find(x => x.id === student.id) || student;
                 
-                // Calculate stats
                 const compliance = getStudentCompliance(pStudent.notes, pStudent.reasons);
                 const rankInfo = getStudentRank(student.id, gradeId, state.currentTrim, state.data, state.config);
                 
@@ -212,18 +885,6 @@ export default function StudentsView({
                 } else {
                   finalScore = calculateFinal(pStudent.notes, state.config);
                 }
-                const cName = state.config.blockNames[0] || "Cotidianas";
-                const cWeight = state.config.blockWeights[0];
-                const sName = state.config.blockNames[1] || "Santillana";
-                const sWeight = state.config.blockWeights[1];
-                const iName = state.config.blockNames[2] || "Trabajo Integrador";
-                const iWeight = state.config.blockWeights[2];
-                const pName = state.config.blockNames[3] || "Proyecto";
-                const pWeight = state.config.blockWeights[3];
-                const hName = state.config.blockNames[4] || "Holística";
-                const hWeight = state.config.blockWeights[4];
-                const eName = state.config.blockNames[5] || "Evaluación";
-                const eWeight = state.config.blockWeights[5];
 
                 const cotidianaNotes = pStudent.notes.slice(0, 10);
                 const cotidianaAvg = getAvg(cotidianaNotes);
@@ -234,6 +895,20 @@ export default function StudentsView({
                 const avgEx = (examEscrito * 0.85) + (examRubrica * 0.15);
 
                 const isExpanded = expandedStudentId === student.id;
+                const gradeSubject = state.config.grades.find(x => x.id === gradeId)?.useGlobalSubject ? state.config.subject : state.config.grades.find(x => x.id === gradeId)?.subject;
+
+                const cName = blockNames[0] || "Cotidianas";
+                const cWeight = blockWeights[0];
+                const sName = blockNames[1] || "Santillana";
+                const sWeight = blockWeights[1];
+                const iName = blockNames[2] || "Trabajo Integrador";
+                const iWeight = blockWeights[2];
+                const pName = blockNames[3] || "Proyecto";
+                const pWeight = blockWeights[3];
+                const hName = blockNames[4] || "Holística";
+                const hWeight = blockWeights[4];
+                const eName = blockNames[5] || "Evaluación";
+                const eWeight = blockWeights[5];
 
                 return (
                   <React.Fragment key={`${student.id}-${gradeId}-${idx}`}>
@@ -243,38 +918,38 @@ export default function StudentsView({
                       } ${isExpanded ? "bg-slate-50/60 font-semibold" : ""}`}
                     >
                       <td className="p-4 py-3">
-                        <span className="font-semibold block text-gray-900">{pStudent.name}</span>
+                        <span className="font-semibold block text-gray-900 text-xs">{pStudent.name}</span>
                         {pStudent.isDisabled && (
-                          <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block mt-0.5">
+                          <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider block mt-0.5">
                             🚫 Alumno Inactivo
                           </span>
                         )}
                       </td>
                       <td className="p-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                           {gradeLabel}
                         </span>
-                        <span className="text-xs text-gray-500 block mt-1 font-medium">
-                          {state.config.grades.find(x => x.id === gradeId)?.useGlobalSubject ? state.config.subject : state.config.grades.find(x => x.id === gradeId)?.subject}
+                        <span className="text-[11px] text-gray-500 block mt-1 font-semibold truncate max-w-[160px]">
+                          {gradeSubject}
                         </span>
                       </td>
                       <td className="p-4 py-3 text-center">
-                        <span className="font-bold block text-gray-800">
-                          {compliance.count} <span className="text-xs text-gray-400 font-normal">/ {compliance.total}</span>
+                        <span className="font-bold block text-gray-800 text-xs">
+                          {compliance.count} <span className="text-[10px] text-gray-400 font-normal">/ {compliance.total}</span>
                         </span>
-                        <span className="text-xs font-semibold text-gray-500 block">
+                        <span className="text-[10px] font-semibold text-gray-500 block">
                           {compliance.percentage}% entregado
                         </span>
                       </td>
                       <td className="p-4 py-3 text-center">
-                        <span className="font-bold block text-gray-800">
+                        <span className="font-bold block text-gray-800 text-xs">
                           Puesto #{rankInfo.rank}
                         </span>
-                        <span className="text-xs text-gray-500 block font-medium">
+                        <span className="text-[10px] text-gray-500 block font-medium">
                           de {rankInfo.total} alumnos
                         </span>
                       </td>
-                      <td className="p-4 py-3 text-center font-bold text-base">
+                      <td className="p-4 py-3 text-center font-bold text-sm">
                         <span className={finalScore < 6.5 ? "text-red-650" : "text-emerald-700"}>
                           {finalScore.toFixed(1)}
                         </span>
@@ -311,7 +986,6 @@ export default function StudentsView({
                       <tr className="bg-slate-50 border-b-2 border-slate-205">
                         <td colSpan={6} className="p-4 bg-slate-50/80 border-t border-slate-200">
                           <div className="bg-white border-2 border-slate-200 p-5 rounded-lg shadow-sm space-y-4">
-                            {/* Inner header */}
                             <div className="flex justify-between items-center border-b border-gray-150 pb-2">
                               <div>
                                 <h4 className="text-sm font-black text-slate-850 uppercase tracking-tight flex items-center gap-2">
@@ -330,7 +1004,6 @@ export default function StudentsView({
                               </button>
                             </div>
 
-                            {/* Warning if state.currentTrim === "ANUAL" */}
                             {state.currentTrim === "ANUAL" ? (
                               <div className="p-4 bg-amber-50 text-amber-900 border border-amber-200 rounded-md text-xs font-bold leading-relaxed space-y-1">
                                 <p className="flex items-center gap-2 text-amber-900">
