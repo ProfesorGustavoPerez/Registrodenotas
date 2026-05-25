@@ -179,7 +179,7 @@ export default function LowGradeReportDetails({
               {lowNotes.map((item, idx) => (
                 <tr key={idx} className="hover:bg-gray-50/50 h-5.5">
                   <td className="p-1 px-2.5 font-medium text-gray-850">{item.activityName}</td>
-                  <td className="p-1 text-center font-black text-red-650 border-l border-gray-250">{item.note.toFixed(1)}</td>
+                   <td className="p-1 text-center font-black text-red-650 border-l border-gray-250">{item.note.toFixed(1)}</td>
                   <td className="p-1 px-2.5 italic text-gray-650 font-normal border-l border-gray-250 truncate max-w-xs" title={item.reason || ""}>
                     {item.reason || "Sin observación o justificación cargada"}
                   </td>
@@ -189,16 +189,6 @@ export default function LowGradeReportDetails({
           </table>
         </div>
       )}
-
-      {/* Elaborated pedagogical diagnosis paragraph */}
-      <div className="bg-white border border-gray-350 p-3 rounded font-serif text-[10.5px] leading-relaxed text-gray-800">
-        <span className="font-bold text-gray-800 block mb-1 underline uppercase text-[10px] tracking-tight">
-          Análisis Diagnóstico Pedagógico del Periodo:
-        </span>
-        <div className="text-justify whitespace-pre-line text-xs font-serif leading-relaxed text-gray-800">
-          {textDiagnosis}
-        </div>
-      </div>
     </div>
   );
 }

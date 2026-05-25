@@ -269,10 +269,8 @@ export default function FichaView({
         <div className="pt-6 print:pt-4">
           <div className="grid grid-cols-2 gap-x-12 text-center items-end">
             <div className="flex flex-col items-center justify-end">
-              <div className="h-11 flex items-end justify-center mb-1 w-full overflow-hidden">
-                <span className="signature-font text-[35px] print:text-[28px] text-blue-950 block tracking-wider leading-none select-none truncate max-w-full whitespace-nowrap">
-                  {state.config.teacher}
-                </span>
+              <div className="h-11 mb-1 w-full flex items-end justify-center">
+                {/* Espacio en blanco para firma manuscrita del docente */}
               </div>
               <div className="w-full border-t border-black pt-1 font-bold uppercase tracking-wider text-[9px] text-gray-700">
                 Firma del Docente
