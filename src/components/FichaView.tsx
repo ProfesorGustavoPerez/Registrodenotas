@@ -73,7 +73,19 @@ export default function FichaView({
     : calculateFinal(sPeriod.notes, state.config);
 
   const handlePrint = () => {
+    const originalTitle = document.title;
+    const periodStr = isAnual ? "Resumen Anual" : `Periodo ${activePeriod.replace("T", "")}`;
+    const studentName = sBase.name;
+    
+    // Set format: Materia, Periodo, Nombre
+    document.title = `${subject}, ${periodStr}, ${studentName}`;
+    
     window.print();
+    
+    // Brief delay to let browser queue the print dialog with the modified title, then restore it
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 150);
   };
 
   return (

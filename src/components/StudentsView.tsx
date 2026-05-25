@@ -10,9 +10,12 @@ import {
 interface GradeInputProps {
   value: number | null;
   onChange: (value: string) => void;
+  rowIndex?: number;
+  colIndex?: number;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
-function GradeInput({ value, onChange }: GradeInputProps) {
+function GradeInput({ value, onChange, rowIndex, colIndex, onKeyDown }: GradeInputProps) {
   const [localVal, setLocalVal] = useState<string>(value === null ? "" : String(value));
 
   useEffect(() => {
@@ -60,6 +63,9 @@ function GradeInput({ value, onChange }: GradeInputProps) {
       value={localVal}
       onChange={handleInputChange}
       onBlur={handleBlur}
+      onKeyDown={onKeyDown}
+      data-row-index={rowIndex}
+      data-col-index={colIndex}
       className="w-full h-full text-center bg-transparent outline-none select-all font-bold text-xs"
       onFocus={(e) => e.target.select()}
     />
@@ -130,6 +136,56 @@ export default function StudentsView({
         return { id, index, direction: defaultDir };
       }
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const target = e.currentTarget;
+    const rowIndex = parseInt(target.getAttribute("data-row-index") || "0", 10);
+    const colIndex = parseInt(target.getAttribute("data-col-index") || "0", 10);
+    const container = target.closest("tbody");
+    if (!container) return;
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const isShift = e.shiftKey;
+      let nextRow = rowIndex;
+      let nextCol = colIndex;
+
+      if (!isShift) {
+        nextCol = colIndex + 1;
+        if (nextCol > 24) {
+          nextCol = 0;
+          nextRow = rowIndex + 1;
+        }
+      } else {
+        nextCol = colIndex - 1;
+        if (nextCol < 0) {
+          nextCol = 24;
+          nextRow = rowIndex - 1;
+        }
+      }
+
+      const nextInput = container.querySelector<HTMLInputElement>(
+        `input[data-row-index="${nextRow}"][data-col-index="${nextCol}"]`
+      );
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const isShift = e.shiftKey;
+      const nextRow = isShift ? rowIndex - 1 : rowIndex + 1;
+      const nextCol = colIndex;
+
+      const nextInput = container.querySelector<HTMLInputElement>(
+        `input[data-row-index="${nextRow}"][data-col-index="${nextCol}"]`
+      );
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    }
   };
 
   const renderSortIndicator = (id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
@@ -758,6 +814,9 @@ export default function StudentsView({
                             <GradeInput
                               value={noteVal}
                               onChange={(val) => onUpdateNote(s.id, noteIdx, val, gid)}
+                              rowIndex={visualSidx}
+                              colIndex={noteIdx}
+                              onKeyDown={handleKeyDown}
                             />
                             <button
                               onClick={() => onOpenReason(s.id, noteIdx, gid)}
