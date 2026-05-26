@@ -278,6 +278,7 @@ export default function App() {
   const [reasonManualText, setReasonManualText] = useState("");
   const [activeReasonOption, setActiveReasonOption] = useState<string | null>(null);
   const [activityInputValue, setActivityInputValue] = useState("");
+  const [confirmResetChecked, setConfirmResetChecked] = useState(false);
 
   const REASON_OPTS = [
     "Presentó Permiso",
@@ -470,7 +471,7 @@ export default function App() {
             name: `Estudiante ${placeholderIdx + 1}`,
             notes: Array(25).fill(null),
             reasons: Array(25).fill(null),
-            isDisabled: false,
+            isDisabled: true,
             manualComment: "",
           };
           dataCopy[p][target.gid] = listCopy;
@@ -529,7 +530,7 @@ export default function App() {
           name: `Estudiante ${placeholderIdx + 1}`,
           notes: Array(25).fill(null),
           reasons: Array(25).fill(null),
-          isDisabled: false,
+          isDisabled: true,
           manualComment: "",
         };
 
@@ -557,7 +558,9 @@ export default function App() {
     }
 
     const currentStudents = state.data["T1"]?.[gid] || [];
-    const activeNames = currentStudents.filter(s => !s.name.includes("Estudiante")).map(s => s.name.toLowerCase());
+    const activeNames = currentStudents
+      .filter(s => !s.isDisabled && !s.name.includes("Estudiante"))
+      .map(s => s.name.toLowerCase());
 
     const namesToAdd: string[] = [];
     listRaw.forEach(n => {
@@ -571,10 +574,10 @@ export default function App() {
       return;
     }
 
-    // Identify empty index placeholders strictly based on the master period "T1"
+    // Identify empty/inactive/disabled index placeholders strictly based on master "T1"
     const targetIdxs: number[] = [];
     for (let i = 0; i < currentStudents.length && targetIdxs.length < namesToAdd.length; i++) {
-      if (currentStudents[i].name.includes("Estudiante")) {
+      if (currentStudents[i].name.includes("Estudiante") || currentStudents[i].isDisabled) {
         targetIdxs.push(i);
       }
     }
@@ -585,6 +588,7 @@ export default function App() {
     }
 
     const actualNamesToAdd = namesToAdd.slice(0, targetIdxs.length);
+    const timestamp = Date.now();
 
     setState(prev => {
       const dataCopy = { ...prev.data };
@@ -594,7 +598,12 @@ export default function App() {
           if (listIdx < listCopy.length && sIdx < actualNamesToAdd.length) {
             listCopy[listIdx] = {
               ...listCopy[listIdx],
-              name: actualNamesToAdd[sIdx]
+              name: actualNamesToAdd[sIdx],
+              notes: Array(25).fill(null),
+              reasons: Array(25).fill(null),
+              isDisabled: false,
+              manualComment: "",
+              addedAt: timestamp + sIdx, // distinct timestamp increment to maintain sequence
             };
           }
         });
@@ -782,7 +791,7 @@ export default function App() {
   const handleImportXLSXData = (
     gradeId: string, 
     periodId: string, 
-    parsedStudents: { name: string; notes: (number | null)[] }[]
+    parsedStudents: { name: string; notes: (number | null)[]; reasons?: (string | null)[] }[]
   ) => {
     let affectedCount = 0;
 
@@ -802,14 +811,15 @@ export default function App() {
           dataCopy[trim][gradeId] = list;
         });
       } else {
-        // Upload specific notes
+        // Upload specific notes and reasons
         const list = [...(dataCopy[periodId]?.[gradeId] || [])];
         parsedStudents.forEach(pS => {
           const sIdx = list.findIndex(x => normalizeName(x.name) === normalizeName(pS.name));
           if (sIdx !== -1) {
             list[sIdx] = {
               ...list[sIdx],
-              notes: pS.notes
+              notes: pS.notes,
+              reasons: pS.reasons || list[sIdx].reasons || Array(25).fill(null)
             };
             affectedCount++;
           }
@@ -1033,6 +1043,10 @@ export default function App() {
               currentTrim: trim, 
               config: { ...prev.config, defaultPeriod: trim } 
             }))}
+            onResetSystem={() => {
+              setConfirmResetChecked(false);
+              setModals(prev => ({ ...prev, reset: true }));
+            }}
           />
         )}
 
@@ -1041,7 +1055,10 @@ export default function App() {
             state={state}
             onImportJSON={handleApplyImportFullJSON}
             onExportJSON={handleExportFullJSON}
-            onResetSystem={() => setModals(prev => ({ ...prev, reset: true }))}
+            onResetSystem={() => {
+              setConfirmResetChecked(false);
+              setModals(prev => ({ ...prev, reset: true }));
+            }}
             onImportXLSX={handleImportXLSXData}
           />
         )}
@@ -1463,27 +1480,47 @@ export default function App() {
 
       {/* 6. reset warning modal */}
       {modals.reset && (
-        <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white border-2 border-red-650 rounded-lg shadow-xl max-w-sm w-full p-6 space-y-4">
-            <h3 className="text-sm font-black text-red-700 uppercase tracking-tight border-b border-gray-100 pb-2">
+            <h3 className="text-sm font-black text-red-750 uppercase tracking-tight border-b border-gray-100 pb-2">
               ⚠️ Alerta Crítica del Sistema
             </h3>
-            <p className="text-xs text-gray-500 leading-normal">
-              ¿Está completamente de acuerdo en borrar e inicializar toda la base de datos a sus valores predeterminados? Se perderán todas las notas e incidencias del año lectivo.
+            <p className="text-xs text-gray-550 leading-normal">
+              ¿Está completamente de acuerdo en borrar e inicializar toda la base de datos a sus valores predeterminados? Se perderán todas las notas, incidencias y estudiantes de todos los grupos.
             </p>
+            
+            <div className="bg-rose-50 border border-rose-100 p-3 rounded text-rose-800 text-xs">
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={confirmResetChecked}
+                  onChange={(e) => setConfirmResetChecked(e.target.checked)}
+                  className="mt-0.5 accent-red-750 rounded text-white"
+                />
+                <span className="font-bold text-[11px] leading-tight text-red-800">
+                  Entiendo que esta acción es definitiva y que perderé toda la información cargada.
+                </span>
+              </label>
+            </div>
+
             <div className="flex justify-end gap-2.5 pt-2">
               <button
                 onClick={() => setModals(prev => ({ ...prev, reset: false }))}
-                className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase hover:bg-gray-50 cursor-pointer text-gray-600"
+                className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase hover:bg-gray-50 cursor-pointer text-gray-650"
               >
                 Cancelar
               </button>
               <button
                 onClick={applyResetSystem}
-                className="px-4 py-2 bg-red-650 hover:bg-red-750 text-white font-bold rounded text-xs uppercase cursor-pointer"
+                disabled={!confirmResetChecked}
+                className={`px-4 py-2 font-bold rounded text-xs uppercase transition-colors select-none ${
+                  confirmResetChecked
+                    ? "bg-red-700 hover:bg-red-800 text-white cursor-pointer shadow-xs"
+                    : "bg-gray-200 text-gray-450 border border-gray-300 cursor-not-allowed opacity-60"
+                }`}
               >
                 Sí, Borrar Todo
-              </button>
+               </button>
             </div>
           </div>
         </div>

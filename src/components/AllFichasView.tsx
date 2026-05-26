@@ -4,7 +4,8 @@ import {
   calculateFinal, getAvg, getStudentCompliance, getStudentRank, getGroupAverage, findStudentForPeriod
 } from "../utils";
 import LowGradeReportDetails from "./LowGradeReportDetails";
-import { Printer, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft, Download, FileDown, Loader2 } from "lucide-react";
+import { downloadElementsAsPDF, PDFProgress } from "../utils/pdfGenerator";
 
 interface AllFichasViewProps {
   state: AppState;
@@ -51,6 +52,64 @@ export default function AllFichasView({
   const isAnual = activePeriod === "ANUAL";
   const groupAvg = getGroupAverage(gradeId, activePeriod, state.data, state.config);
 
+  const [downloadProgress, setDownloadProgress] = useState<PDFProgress | null>(null);
+  const [isIndividualDownloading, setIsIndividualDownloading] = useState<string | null>(null);
+
+  const handleDownloadAllSelected = async (singleFile: boolean) => {
+    // Select all elements with class "ficha-page"
+    const pages = Array.from(document.querySelectorAll(".ficha-page")) as HTMLElement[];
+    if (pages.length === 0) return;
+
+    if (singleFile) {
+      setDownloadProgress({ current: 1, total: pages.length });
+      try {
+        const periodStr = isAnual ? "Anual" : `Periodo-${activePeriod.replace("T", "")}`;
+        const filename = `Informes_Completos_${subject}_${g?.label || "Grado"}_${periodStr}.pdf`;
+        await downloadElementsAsPDF(pages, filename, (progress) => {
+          setDownloadProgress(progress);
+        });
+      } catch (err) {
+        console.error("Error generating PDFs:", err);
+      } finally {
+        setDownloadProgress(null);
+      }
+    } else {
+      // Download one-by-one (individually with names)
+      setDownloadProgress({ current: 1, total: pages.length });
+      try {
+        for (let i = 0; i < pages.length; i++) {
+          setDownloadProgress({ current: i + 1, total: pages.length });
+          const studentName = sortedStudents[i].name;
+          const periodStr = isAnual ? "Resumen-Anual" : `Periodo-${activePeriod.replace("T", "")}`;
+          const filename = `Informe_${subject}_${g?.label || "Grado"}_${studentName.replace(/\s+/g, "_")}_${periodStr}.pdf`;
+          
+          await downloadElementsAsPDF([pages[i]], filename);
+          // Wait a tiny bit between consecutive downloads to let browser pipeline run comfortably
+          await new Promise(resolve => setTimeout(resolve, 350));
+        }
+      } catch (err) {
+        console.error("Error saving individual PDFs:", err);
+      } finally {
+        setDownloadProgress(null);
+      }
+    }
+  };
+
+  const handleDownloadSingle = async (sid: string, name: string) => {
+    const el = document.getElementById(`ficha-page-${sid}`);
+    if (!el) return;
+    setIsIndividualDownloading(sid);
+    try {
+      const periodStr = isAnual ? "Resumen-Anual" : `Periodo-${activePeriod.replace("T", "")}`;
+      const filename = `Informe_${subject}_${g?.label || "Grado"}_${name.replace(/\s+/g, "_")}_${periodStr}.pdf`;
+      await downloadElementsAsPDF([el], filename);
+    } catch (err) {
+      console.error("Error generating single PDF:", err);
+    } finally {
+      setIsIndividualDownloading(null);
+    }
+  };
+
   const handlePrint = () => {
     const originalTitle = document.title;
     const periodStr = isAnual ? "Anual" : `Periodo ${activePeriod.replace("T", "")}`;
@@ -68,8 +127,8 @@ export default function AllFichasView({
 
   return (
     <div className="space-y-6">
-      {/* Barra de control para volver e imprimir todos */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-200 bg-white p-3.5 rounded-lg shadow-2xs w-full max-w-4xl mx-auto no-print">
+      {/* Barra de control para volver, descargar e imprimir todos */}
+      <div className="flex flex-col xl:flex-row items-center justify-between gap-4 border border-slate-200 bg-white p-3.5 rounded-lg shadow-2xs w-full max-w-4xl mx-auto no-print">
         <button
           onClick={onBack}
           className="flex items-center gap-1 px-4 py-2 border border-slate-300 rounded font-bold text-xs uppercase cursor-pointer hover:bg-slate-50 transition-colors text-slate-700 bg-white"
@@ -102,13 +161,36 @@ export default function AllFichasView({
           </div>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm"
-        >
-          <Printer className="w-4 h-4" />
-          Imprimir Todos
-        </button>
+        <div className="flex items-center flex-wrap gap-2">
+          <button
+            onClick={() => handleDownloadAllSelected(true)}
+            disabled={downloadProgress !== null}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-650 hover:bg-indigo-750 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+            title="Descargar todos los informes unidos en un solo archivo PDF de tamaño carta"
+          >
+            <Download className="w-4 h-4" />
+            Descargar Todo (Un Solo PDF)
+          </button>
+
+          <button
+            onClick={() => handleDownloadAllSelected(false)}
+            disabled={downloadProgress !== null}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+            title="Descargar cada informe por separado, uno por uno como PDFs individuales para cada estudiante"
+          >
+            <FileDown className="w-4 h-4" />
+            Descargar Uno por Uno
+          </button>
+
+          <button
+            onClick={handlePrint}
+            disabled={downloadProgress !== null}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimir Todos
+          </button>
+        </div>
       </div>
 
       {/* List of all sheets */}
@@ -137,12 +219,30 @@ export default function AllFichasView({
           return (
             <div 
               key={studentId}
+              id={`ficha-page-${studentId}`}
               className="ficha-page page-break-after-always font-serif mx-auto shadow-md border border-gray-300 p-6 md:p-8 w-full max-w-[21.59cm] min-h-[26.5cm] bg-white text-black text-[11px] flex flex-col justify-between"
               style={{
                 ["--print-zoom" as any]: printScale,
                 zoom: printScale,
               }}
             >
+              {/* Opción de descarga individual flotante (no-print) */}
+              <div className="no-print flex justify-end mb-2">
+                <button
+                  onClick={() => handleDownloadSingle(studentId, sBase.name)}
+                  disabled={isIndividualDownloading !== null || downloadProgress !== null}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-white rounded text-[10.5px] font-extrabold uppercase transition-colors cursor-pointer shadow-xs ${
+                    isIndividualDownloading === studentId
+                      ? "bg-slate-400 cursor-not-allowed animate-pulse"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  }`}
+                  title={`Descargar PDF de ${sBase.name}`}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {isIndividualDownloading === studentId ? "Descargando..." : "Descargar PDF Carta"}
+                </button>
+              </div>
+
               <div className="space-y-4">
                 {/* Encabezado Institucional */}
                 <div className="text-center border-b-2 border-double border-black pb-2 space-y-0.5">
@@ -151,20 +251,18 @@ export default function AllFichasView({
                   <span className="inline-block px-3 py-0.5 mt-0.5 text-[10px] font-black uppercase tracking-wider bg-gray-100 rounded border border-gray-300 text-black">
                     {isAnual ? "RESUMEN ANUAL" : `PERIODO ${activePeriod.replace("T", "")}`}
                   </span>
-                </div>
-
-                {/* Ficha técnica estudiante */}
+                </div>                 {/* Ficha técnica estudiante */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-1.5 py-0.5 text-xs text-black">
                   <div className="flex justify-between items-end border-b border-dotted border-gray-400">
                     <span className="font-bold text-black mr-2 uppercase block animate-pulse">Estudiante:</span>
                     <span className="font-extrabold text-sm text-black block truncate">{sBase.name}</span>
                   </div>
                   <div className="flex justify-between items-end border-b border-dotted border-gray-400">
-                    <span className="font-bold text-black mr-2 uppercase block">Grado / Grupo:</span>
+                    <span className="font-bold text-black mr-2 uppercase block">Grado:</span>
                     <span className="font-extrabold text-sm text-black block truncate">{g.label}</span>
                   </div>
                   <div className="flex justify-between items-end border-b border-dotted border-gray-400">
-                    <span className="font-bold text-black mr-2 uppercase block">Materia / Asignatura:</span>
+                    <span className="font-bold text-black mr-2 uppercase block">Materia:</span>
                     <span className="font-bold text-black block truncate">{subject}</span>
                   </div>
                   <div className="flex justify-between items-end border-b border-dotted border-gray-400">
@@ -363,6 +461,37 @@ export default function AllFichasView({
           );
         })}
       </div>
+
+      {/* Overlay de Progreso de Descarga */}
+      {downloadProgress && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 no-print">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full text-center space-y-4 border border-slate-100">
+            <div className="flex justify-center">
+              <div className="relative flex items-center justify-center">
+                <Loader2 className="animate-spin text-indigo-600 h-12 w-12" />
+                <span className="absolute text-xs font-black text-indigo-600">
+                  {Math.round((downloadProgress.current / downloadProgress.total) * 100)}%
+                </span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Generando Archivos PDF</h3>
+              <p className="text-xs text-slate-500">
+                Procesando informe {downloadProgress.current} de {downloadProgress.total}
+              </p>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div 
+                className="bg-indigo-600 h-full transition-all duration-300 rounded-full"
+                style={{ width: `${(downloadProgress.current / downloadProgress.total) * 100}%` }}
+              ></div>
+            </div>
+            <p className="text-[10px] text-slate-400 italic">
+              Este proceso puede tardar unos segundos por el renderizado de alta fidelidad Carta de cada estudiante.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

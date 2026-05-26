@@ -120,10 +120,10 @@ export default function SheetView({
   onViewAllReports,
 }: SheetViewProps) {
   const [sortColumn, setSortColumn] = useState<{
-    id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period";
+    id: "original" | "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period";
     index?: number;
     direction: "asc" | "desc";
-  }>({ id: "name", direction: "asc" });
+  }>({ id: "original", direction: "asc" });
 
   const [activeDropdownStudentId, setActiveDropdownStudentId] = useState<string | null>(null);
 
@@ -150,6 +150,9 @@ export default function SheetView({
   const baseStudents = state.data["T1"]?.[gid] || [];
 
   const selectValue = useMemo(() => {
+    if (sortColumn.id === "original") {
+      return "original";
+    }
     if (sortColumn.id === "name") {
       return sortColumn.direction === "asc" ? "alphabetical" : "alphabetical-desc";
     }
@@ -160,7 +163,9 @@ export default function SheetView({
   }, [sortColumn]);
 
   const handleSelectSortChange = (val: string) => {
-    if (val === "alphabetical") {
+    if (val === "original") {
+      setSortColumn({ id: "original", direction: "asc" });
+    } else if (val === "alphabetical") {
       setSortColumn({ id: "name", direction: "asc" });
     } else if (val === "alphabetical-desc") {
       setSortColumn({ id: "name", direction: "desc" });
@@ -171,7 +176,7 @@ export default function SheetView({
     }
   };
 
-  const toggleSort = (id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
+  const toggleSort = (id: "original" | "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period", index?: number) => {
     setSortColumn((prev) => {
       const isSame = prev.id === id && prev.index === index;
       if (isSame) {
@@ -266,6 +271,30 @@ export default function SheetView({
       const dummyB = b.name.includes("Estudiante");
       if (dummyA && !dummyB) return 1;
       if (!dummyA && dummyB) return -1;
+      if (dummyA && dummyB) {
+        const idxA = a.id.split("-").length > 2 ? parseInt(a.id.split("-")[2]) : 0;
+        const idxB = b.id.split("-").length > 2 ? parseInt(b.id.split("-")[2]) : 0;
+        return idxA - idxB;
+      }
+
+      if (a.isDisabled && !b.isDisabled) return 1;
+      if (!a.isDisabled && b.isDisabled) return -1;
+
+      // Original sequence sorting (active non-added first by ID, then added by timestamp)
+      if (sortColumn.id === "original") {
+        const hasAddA = a.addedAt !== undefined;
+        const hasAddB = b.addedAt !== undefined;
+
+        if (hasAddA && !hasAddB) return 1;
+        if (!hasAddA && hasAddB) return -1;
+        if (hasAddA && hasAddB) {
+          return (a.addedAt || 0) - (b.addedAt || 0);
+        }
+
+        const idxA = a.id.split("-").length > 2 ? parseInt(a.id.split("-")[2]) : 0;
+        const idxB = b.id.split("-").length > 2 ? parseInt(b.id.split("-")[2]) : 0;
+        return idxA - idxB;
+      }
       
       let comparison = 0;
 
@@ -456,6 +485,7 @@ export default function SheetView({
               onChange={(e) => handleSelectSortChange(e.target.value)}
               className="bg-transparent text-[10px] font-black uppercase focus:outline-none cursor-pointer text-slate-600 tracking-wider"
             >
+              <option value="original">Orden de Lista (Establecido)</option>
               <option value="alphabetical">Nombre del Alumno (A → Z)</option>
               <option value="alphabetical-desc">Nombre del Alumno (Z → A)</option>
               <option value="best">Promedio Final (Mayor a Menor)</option>

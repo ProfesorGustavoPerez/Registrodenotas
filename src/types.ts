@@ -5,6 +5,7 @@ export interface Student {
   reasons: (string | null)[]; // 25 elements for notes comments/incidences
   isDisabled: boolean;
   manualComment: string;
+  addedAt?: number;
 }
 
 export interface Grade {

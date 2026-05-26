@@ -11,7 +11,11 @@ interface BackupViewProps {
   onImportJSON: (importedState: any) => void;
   onExportJSON: () => void;
   onResetSystem: () => void;
-  onImportXLSX: (gradeId: string, periodId: string, parsedStudents: { name: string; notes: (number | null)[] }[]) => void;
+  onImportXLSX: (
+    gradeId: string, 
+    periodId: string, 
+    parsedStudents: { name: string; notes: (number | null)[]; reasons?: (string | null)[] }[]
+  ) => void;
 }
 
 export default function BackupView({
@@ -107,6 +111,17 @@ export default function BackupView({
         "PROMEDIO FINAL"
       );
 
+      // Append headers for notes' individual reasons/incidents
+      for (let i = 1; i <= 10; i++) headers.push(`Incidencia ${bClean[0]} ${i}`);
+      for (let i = 1; i <= 10; i++) headers.push(`Incidencia ${bClean[1]} ${i}`);
+      headers.push(
+        `Incidencia ${bClean[2]}`,
+        `Incidencia ${bClean[3]}`,
+        `Incidencia ${bClean[4]}`,
+        `Incidencia ${bClean[5]} (Examen)`,
+        `Incidencia ${bClean[5]} (Rúbrica)`
+      );
+
       const pList = state.data[selectedPeriodId]?.[selectedGradeId] || [];
       const pActiveList = pList.filter(s => !s.isDisabled && !s.name.includes("Estudiante"));
 
@@ -130,6 +145,16 @@ export default function BackupView({
 
         // Final weighted
         studentRow.push(calculateFinal(s.notes, state.config));
+
+        // Individual reasons/comments (incidents)
+        // Cotidianas 0-9
+        for (let i = 0; i < 10; i++) studentRow.push(s.reasons[i] || null);
+        // Santillana 10-19
+        for (let i = 10; i < 20; i++) studentRow.push(s.reasons[i] || null);
+        // Integradora, Proyecto, Holistica 20-22
+        studentRow.push(s.reasons[20] || null, s.reasons[21] || null, s.reasons[22] || null);
+        // Exámenes 23-24
+        studentRow.push(s.reasons[23] || null, s.reasons[24] || null);
         
         return studentRow;
       });
@@ -139,7 +164,7 @@ export default function BackupView({
     const wb = XLSX.utils.book_new();
     
     // Auto fit column widths
-    ws["!cols"] = [{ wch: 30 }, ...Array(30).fill({ wch: 10 })];
+    ws["!cols"] = [{ wch: 30 }, ...Array(60).fill({ wch: 10 })];
     XLSX.utils.book_append_sheet(wb, ws, "Calificaciones");
     
     // Write out workbook
@@ -179,7 +204,7 @@ export default function BackupView({
           return;
         }
 
-        const parsedStudents: { name: string; notes: (number | null)[] }[] = [];
+        const parsedStudents: { name: string; notes: (number | null)[]; reasons?: (string | null)[] }[] = [];
 
         for (let i = studentHeaderRowIndex + 1; i < rows.length; i++) {
           const row = rows[i];
@@ -192,7 +217,14 @@ export default function BackupView({
             return isNaN(num) ? null : num;
           };
 
+          const parseReason = (val: any) => {
+            if (val === undefined || val === null) return null;
+            const s = val.toString().trim();
+            return s === "" ? null : s;
+          };
+
           const notes: (number | null)[] = Array(25).fill(null);
+          const reasons: (string | null)[] = Array(25).fill(null);
 
           if (selectedPeriodId !== "ANUAL") {
             // Normal period
@@ -200,21 +232,38 @@ export default function BackupView({
             for (let n = 0; n < 10; n++) notes[n] = parseNote(row[n + 1]);
             
             // Santillana: cells indices 12 to 21 mapped to notes 10 to 19 (skip element index 11 which is average)
-            for (let n = 0; n < 10; n++) notes[n + 10] = parseNote(row[n + 13]); // column average is index 12
+            for (let n = 0; n < 10; n++) notes[n + 10] = parseNote(row[n + 12]); // column average is index 11
 
-            // Integradora, Proyecto, Holistica indexes 23, 24, 25 in Excel
-            notes[20] = parseNote(row[24]); // Excel Col index 24 (following Avg Santillana at 23)
-            notes[21] = parseNote(row[25]);
-            notes[22] = parseNote(row[26]);
+            // Integradora, Proyecto, Holistica indexes in Excel are 23, 24, 25 (following segment 10-19 average at 22)
+            notes[20] = parseNote(row[23]);
+            notes[21] = parseNote(row[24]);
+            notes[22] = parseNote(row[25]);
 
-            // Exámenes: indices 26 and 27 mapped to notes 23 and 24
-            notes[23] = parseNote(row[27]);
-            notes[24] = parseNote(row[28]);
+            // Exámenes: indices 26 and 27 mapped to notes 23 and 24 (following exams average is row index 28)
+            notes[23] = parseNote(row[26]);
+            notes[24] = parseNote(row[27]);
+
+            // Incidences: columns starting from index 30 to 54 in row
+            // Cotidianas 0-9 -> columns 30 to 39
+            for (let n = 0; n < 10; n++) reasons[n] = parseReason(row[n + 30]);
+
+            // Santillana 10-19 -> columns 40 to 49
+            for (let n = 0; n < 10; n++) reasons[n + 10] = parseReason(row[n + 40]);
+
+            // Integradora, Proyecto, Holistica 20-22 -> columns 50, 51, 52
+            reasons[20] = parseReason(row[50]);
+            reasons[21] = parseReason(row[51]);
+            reasons[22] = parseReason(row[52]);
+
+            // Exámenes 23, 24 -> columns 53, 54
+            reasons[23] = parseReason(row[53]);
+            reasons[24] = parseReason(row[54]);
           }
 
           parsedStudents.push({
             name: studentName,
-            notes
+            notes,
+            reasons
           });
         }
 

@@ -4,7 +4,8 @@ import {
   calculateFinal, getAvg, getStudentCompliance, getStudentRank, getGroupAverage, findStudentForPeriod
 } from "../utils";
 import LowGradeReportDetails from "./LowGradeReportDetails";
-import { Printer, ArrowLeft, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { Printer, ArrowLeft, ChevronLeft, ChevronRight, FileText, Download } from "lucide-react";
+import { downloadElementsAsPDF } from "../utils/pdfGenerator";
 
 interface FichaViewProps {
   state: AppState;
@@ -85,6 +86,24 @@ export default function FichaView({
         return totalSum / count;
       })()
     : calculateFinal(sPeriod.notes, state.config);
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    const el = document.getElementById("ficha-print-element");
+    if (!el) return;
+    setIsDownloading(true);
+    try {
+      const periodStr = isAnual ? "Resumen-Anual" : `Periodo-${activePeriod.replace("T", "")}`;
+      // Filename format as letter size PDF
+      const filename = `Informe_${subject}_${g?.label || "Grado"}_${sBase.name.replace(/\s+/g, "_")}_${periodStr}.pdf`;
+      await downloadElementsAsPDF([el], filename);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handlePrint = () => {
     const originalTitle = document.title;
@@ -171,13 +190,26 @@ export default function FichaView({
           {onViewAllReports && (
             <button
               onClick={onViewAllReports}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-650 hover:bg-indigo-750 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
               title="Ver todos los reportes de este grupo juntos para imprimirlos a la vez"
             >
               <FileText className="w-4 h-4" />
               Ver Todos (Impresión)
             </button>
           )}
+
+          <button
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className={`flex items-center gap-1.5 px-4 py-2 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm ${
+              isDownloading 
+                ? "bg-slate-400 cursor-not-allowed" 
+                : "bg-indigo-600 hover:bg-indigo-700"
+            }`}
+          >
+            <Download className="w-4 h-4" />
+            {isDownloading ? "Descargando..." : "Descargar Reporte"}
+          </button>
 
           <button
             onClick={handlePrint}
@@ -215,11 +247,11 @@ export default function FichaView({
               <span className="font-extrabold text-sm text-black block truncate">{sBase.name}</span>
             </div>
             <div className="flex justify-between items-end border-b border-dotted border-gray-400">
-              <span className="font-bold text-black mr-2 uppercase block">Grado / Grupo:</span>
+              <span className="font-bold text-black mr-2 uppercase block">Grado:</span>
               <span className="font-extrabold text-sm text-black block truncate">{g.label}</span>
             </div>
             <div className="flex justify-between items-end border-b border-dotted border-gray-400">
-              <span className="font-bold text-black mr-2 uppercase block">Materia / Asignatura:</span>
+              <span className="font-bold text-black mr-2 uppercase block">Materia:</span>
               <span className="font-bold text-black block truncate">{subject}</span>
             </div>
             <div className="flex justify-between items-end border-b border-dotted border-gray-400">

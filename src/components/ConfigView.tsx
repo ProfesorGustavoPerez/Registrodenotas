@@ -1,5 +1,5 @@
 import { AppState, Config, Grade } from "../types";
-import { Sliders, Settings, School, Users, GraduationCap, CheckCircle2, Tag, ArrowUpCircle } from "lucide-react";
+import { Sliders, Settings, School, Users, GraduationCap, CheckCircle2, Tag, ArrowUpCircle, Trash2 } from "lucide-react";
 
 const incrementVersion = (currentVersion: string, type: 'major' | 'minor'): string => {
   const version = currentVersion || "2.4";
@@ -31,9 +31,10 @@ interface ConfigViewProps {
   onUpdateConfig: (newConfig: Config) => void;
   onSave: () => void;
   onPeriodChange: (trim: string) => void;
+  onResetSystem?: () => void;
 }
 
-export default function ConfigView({ state, onUpdateConfig, onSave, onPeriodChange }: ConfigViewProps) {
+export default function ConfigView({ state, onUpdateConfig, onSave, onPeriodChange, onResetSystem }: ConfigViewProps) {
   const config = state.config;
 
   const handleFieldChange = (key: keyof Config, value: any) => {
@@ -331,6 +332,28 @@ export default function ConfigView({ state, onUpdateConfig, onSave, onPeriodChan
           </div>
         </div>
       </div>
+
+      {/* Danger Zone: Purgar y restablecer la base de datos */}
+      {onResetSystem && (
+        <div className="bg-rose-50 border border-rose-200 rounded-lg p-6 shadow-2xs mt-6">
+          <div className="flex items-center gap-3 border-b-2 border-red-250 pb-3 mb-4">
+            <Trash2 className="w-5 h-5 text-red-750" />
+            <h3 className="text-base font-bold text-red-750 uppercase tracking-wider">
+              Zona de Peligro: Restablecer Sistema
+            </h3>
+          </div>
+          <p className="text-xs text-red-800 mb-4 leading-relaxed">
+            Esta acción borrará permanentemente todas las calificaciones, observaciones, justificaciones y registros de todos los grados cargados en el dispositivo. No se puede deshacer.
+          </p>
+          <button
+            onClick={onResetSystem}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Restablecer Registros (Borrar Todo)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
