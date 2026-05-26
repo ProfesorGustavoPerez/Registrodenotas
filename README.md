@@ -69,3 +69,52 @@ La aplicación utiliza un flujo seguro de autenticación por Google para guardar
 **¿Qué pasa al ejecutar localmente?**
 - Firebase Auth aceptará conexiones directas desde tu entorno de desarrollo local (`http://localhost:*`).
 - Al presionar **"Iniciar Sesión con Google"** o **"Respaldar en Google Drive"**, se abrirá una ventana emergente de inicio de sesión estándar de Google para que conectes tu cuenta de forma completamente segura y directa con los servidores de Google.
+
+---
+
+## 🚨 Solución de Problemas (Linux Mint / Ubuntu / Debian)
+
+### Error: `Cannot find native binding` (Relacionado con `@tailwindcss/oxide`)
+Este error ocurre porque npm tiene un bug conocido en Linux al descargar dependencias opcionales compiladas (como el motor Rust de Tailwind v4), especialmente si el archivo `package-lock.json` fue creado en otro sistema operativo.
+
+**La solución más rápida y directa en Linux Mint:**
+
+Hemos creado un comando preconfigurado para forzar la instalación del binario nativo de Linux de forma inmediata. Ejecuta este comando en tu terminal:
+
+```bash
+npm run fix:linux
+```
+
+*(Esto instalará directamente el paquete `@tailwindcss/oxide-linux-x64-gnu` en tus dependencias y resolverá el conflicto al instante).*
+
+Una vez que termine, puedes iniciar la aplicación de forma normal:
+```bash
+npm run dev:local
+```
+
+---
+
+### Solución Alternativa (Si lo anterior no es suficiente):
+
+Si el error persiste, limpia la instalación y reinstala desde cero con estos tres comandos:
+
+1. **Limpia los archivos temporales:**
+   ```bash
+   rm -rf node_modules package-lock.json
+   ```
+
+2. **Fuerza la instalación del motor de Tailwind para tu plataforma:**
+   ```bash
+   npm install @tailwindcss/oxide-linux-x64-gnu --save-optional
+   ```
+
+3. **Instala el resto de dependencias de forma normal:**
+   ```bash
+   npm install
+   ```
+
+4. **Inicia la aplicación:**
+   ```bash
+   npm run dev:local
+   ```
+
