@@ -93,6 +93,10 @@
   .ficha-page .h-11 {
     height: 30px !important;
   }
+  .page-break-after-always {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
 }
 
 /* Custom Signature font mapping */

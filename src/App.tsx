@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppState, Student, Config } from "./types";
+import { findStudentForPeriod, normalizeName } from "./utils";
 import { 
   FolderPlus, Settings, Database, GraduationCap, X, RefreshCw, AlertCircle, Save
 } from "lucide-react";
@@ -11,6 +12,7 @@ import SheetView from "./components/SheetView";
 import ConfigView from "./components/ConfigView";
 import BackupView from "./components/BackupView";
 import FichaView from "./components/FichaView";
+import AllFichasView from "./components/AllFichasView";
 
 const STORAGE_KEY = "ciencias_master_pro_final_v1";
 
@@ -142,6 +144,77 @@ export default function App() {
             }
           });
         });
+
+        // SELF-HEALING BLOCK: Realign T2, T3, T4 student arrays to match the exact order, names, and IDs of T1, transferring notes/reasons correctly
+        if (parsed.data && parsed.data["T1"]) {
+          parsed.config.grades.forEach((g: any) => {
+            const t1Students = parsed.data["T1"][g.id] || [];
+            if (t1Students.length === 0) return;
+
+            ["T2", "T3", "T4"].forEach((p) => {
+              const pStudents = parsed.data[p]?.[g.id];
+              if (!pStudents || pStudents.length === 0) return;
+
+              const matchedIndices = new Set<number>();
+              const reconciledList = Array(t1Students.length);
+
+              // Step 1: Match real students by normalized name (robust against accents and spacing) to retain correct scores
+              t1Students.forEach((t1S: any, t1Idx: number) => {
+                const isPlaceholderT1 = t1S.name.includes("Estudiante");
+                if (!isPlaceholderT1) {
+                  const pIdx = pStudents.findIndex((x: any, idx: number) => 
+                    !matchedIndices.has(idx) && 
+                    normalizeName(x.name) === normalizeName(t1S.name)
+                  );
+                  if (pIdx !== -1) {
+                    matchedIndices.add(pIdx);
+                    reconciledList[t1Idx] = {
+                      ...pStudents[pIdx],
+                      id: t1S.id,
+                      name: t1S.name,
+                      isDisabled: t1S.isDisabled,
+                      manualComment: t1S.manualComment || pStudents[pIdx].manualComment
+                    };
+                  }
+                }
+              });
+
+              // Step 2: Match remaining entries by ID (covers placeholders and/or directly renamed records)
+              t1Students.forEach((t1S: any, t1Idx: number) => {
+                if (reconciledList[t1Idx]) return;
+                const pIdx = pStudents.findIndex((x: any, idx: number) => 
+                  !matchedIndices.has(idx) && 
+                  x.id === t1S.id
+                );
+                if (pIdx !== -1) {
+                  matchedIndices.add(pIdx);
+                  reconciledList[t1Idx] = {
+                    ...pStudents[pIdx],
+                    id: t1S.id,
+                    name: t1S.name,
+                    isDisabled: t1S.isDisabled,
+                    manualComment: t1S.manualComment || pStudents[pIdx].manualComment
+                  };
+                }
+              });
+
+              // Step 3: Fill any remaining unmatched elements matching parent T1 template properties
+              t1Students.forEach((t1S: any, t1Idx: number) => {
+                if (reconciledList[t1Idx]) return;
+                reconciledList[t1Idx] = {
+                  id: t1S.id,
+                  name: t1S.name,
+                  notes: Array(25).fill(null),
+                  reasons: Array(25).fill(null),
+                  isDisabled: t1S.isDisabled,
+                  manualComment: t1S.manualComment
+                };
+              });
+
+              parsed.data[p][g.id] = reconciledList;
+            });
+          });
+        }
 
         // Set fallbacks for UI toggles
         if (parsed.hideInactive === undefined) parsed.hideInactive = false;
@@ -285,7 +358,9 @@ export default function App() {
       const trimData = { ...dataCopy[trim] };
       const studentsList = [...(trimData[gid] || [])];
       
-      const sIdx = studentsList.findIndex(x => x.id === studentId);
+      const sMaster = prev.data["T1"]?.[gid]?.find(x => x.id === studentId);
+      const studentInTrim = findStudentForPeriod(studentsList, studentId, sMaster?.name);
+      const sIdx = studentInTrim ? studentsList.findIndex(x => x.id === studentInTrim.id) : -1;
       if (sIdx !== -1) {
         const studentCopy = { ...studentsList[sIdx] };
         const notesCopy = [...studentCopy.notes];
@@ -417,6 +492,15 @@ export default function App() {
 
     const studentName = state.data["T1"]?.[target.gid]?.find(x => x.id === target.sid)?.name || "";
 
+    // Find the master empty/placeholder slot index in target group based strictly on "T1"
+    const targetListT1 = state.data["T1"]?.[migrateTargetGradeId] || [];
+    const emptyIdx = targetListT1.findIndex(x => x.name.includes("Estudiante"));
+
+    if (emptyIdx === -1) {
+      showToast("error", "No hay casillas vacías disponibles en el grupo de destino. Límite: 40.");
+      return;
+    }
+
     setState(prev => {
       const dataCopy = { ...prev.data };
       
@@ -430,29 +514,24 @@ export default function App() {
         // Clone student logic
         const studentClone = { ...sourceList[sIdx] };
         
-        // Find empty/placeholder slot index in target
-        const emptyIdx = targetList.findIndex(x => x.name.includes("Estudiante"));
-        
-        if (emptyIdx !== -1) {
-          // Relocate index to preserve ID structure in target
-          studentClone.id = `S-${migrateTargetGradeId}-${emptyIdx}`;
-          targetList[emptyIdx] = studentClone;
+        // Relocate index to preserve ID structure in target
+        studentClone.id = `S-${migrateTargetGradeId}-${emptyIdx}`;
+        targetList[emptyIdx] = studentClone;
 
-          // Clear original source row back to empty template
-          const parts = target.sid.split("-");
-          const placeholderIdx = parts.length > 2 ? parseInt(parts[2]) : sIdx;
-          sourceList[sIdx] = {
-            id: target.sid,
-            name: `Estudiante ${placeholderIdx + 1}`,
-            notes: Array(25).fill(null),
-            reasons: Array(25).fill(null),
-            isDisabled: false,
-            manualComment: "",
-          };
+        // Clear original source row back to empty template
+        const parts = target.sid.split("-");
+        const placeholderIdx = parts.length > 2 ? parseInt(parts[2]) : sIdx;
+        sourceList[sIdx] = {
+          id: target.sid,
+          name: `Estudiante ${placeholderIdx + 1}`,
+          notes: Array(25).fill(null),
+          reasons: Array(25).fill(null),
+          isDisabled: false,
+          manualComment: "",
+        };
 
-          dataCopy[p][target.gid] = sourceList;
-          dataCopy[p][migrateTargetGradeId] = targetList;
-        }
+        dataCopy[p][target.gid] = sourceList;
+        dataCopy[p][migrateTargetGradeId] = targetList;
       });
 
       return { ...prev, data: dataCopy };
@@ -489,21 +568,33 @@ export default function App() {
       return;
     }
 
+    // Identify empty index placeholders strictly based on the master period "T1"
+    const targetIdxs: number[] = [];
+    for (let i = 0; i < currentStudents.length && targetIdxs.length < namesToAdd.length; i++) {
+      if (currentStudents[i].name.includes("Estudiante")) {
+        targetIdxs.push(i);
+      }
+    }
+
+    if (targetIdxs.length === 0) {
+      showToast("error", "No quedan espacios o casillas libres en este grupo para agregar más estudiantes. Límite: 40.");
+      return;
+    }
+
+    const actualNamesToAdd = namesToAdd.slice(0, targetIdxs.length);
+
     setState(prev => {
       const dataCopy = { ...prev.data };
       ["T1", "T2", "T3", "T4"].forEach(p => {
         const listCopy = [...(dataCopy[p]?.[gid] || [])];
-        let selectIdx = 0;
-        
-        for (let i = 0; i < listCopy.length && selectIdx < namesToAdd.length; i++) {
-          if (listCopy[i].name.includes("Estudiante")) {
-            listCopy[i] = {
-              ...listCopy[i],
-              name: namesToAdd[selectIdx]
+        targetIdxs.forEach((listIdx, sIdx) => {
+          if (listIdx < listCopy.length && sIdx < actualNamesToAdd.length) {
+            listCopy[listIdx] = {
+              ...listCopy[listIdx],
+              name: actualNamesToAdd[sIdx]
             };
-            selectIdx++;
           }
-        }
+        });
         dataCopy[p][gid] = listCopy;
       });
       return { ...prev, data: dataCopy };
@@ -511,7 +602,7 @@ export default function App() {
 
     setModals(prev => ({ ...prev, addBulk: false }));
     setAddBulkText("");
-    showToast("success", `Se agregaron ${namesToAdd.length} estudiantes correctamente.`);
+    showToast("success", `Se agregaron ${actualNamesToAdd.length} de ${namesToAdd.length} estudiantes correctamente en casillas vacías.`);
   };
 
   // LOG OBSERVANCES / REASONS
@@ -520,7 +611,8 @@ export default function App() {
     if (state.currentTrim === "ANUAL" || !gid) return;
     const trim = state.currentTrim;
 
-    const student = state.data[trim]?.[gid]?.find(x => x.id === studentId);
+    const sMaster = state.data["T1"]?.[gid]?.find(x => x.id === studentId);
+    const student = findStudentForPeriod(state.data[trim]?.[gid], studentId, sMaster?.name);
     if (!student) return;
 
     const currentReason = student.reasons[noteIndex] || "";
@@ -564,7 +656,9 @@ export default function App() {
       const trimData = { ...dataCopy[state.currentTrim] };
       const sList = [...(trimData[target.gid] || [])];
       
-      const sIdx = sList.findIndex(x => x.id === target.sid);
+      const sMaster = prev.data["T1"]?.[target.gid]?.find(x => x.id === target.sid);
+      const studentInTrim = findStudentForPeriod(sList, target.sid, sMaster?.name);
+      const sIdx = studentInTrim ? sList.findIndex(x => x.id === studentInTrim.id) : -1;
       if (sIdx !== -1) {
         const studentCopy = { ...sList[sIdx] };
         const reasonsCopy = [...studentCopy.reasons];
@@ -594,7 +688,9 @@ export default function App() {
       const trimData = { ...dataCopy[state.currentTrim] };
       const sList = [...(trimData[target.gid] || [])];
       
-      const sIdx = sList.findIndex(x => x.id === target.sid);
+      const sMaster = prev.data["T1"]?.[target.gid]?.find(x => x.id === target.sid);
+      const studentInTrim = findStudentForPeriod(sList, target.sid, sMaster?.name);
+      const sIdx = studentInTrim ? sList.findIndex(x => x.id === studentInTrim.id) : -1;
       if (sIdx !== -1) {
         const studentCopy = { ...sList[sIdx] };
         const reasonsCopy = [...studentCopy.reasons];
@@ -706,7 +802,7 @@ export default function App() {
         // Upload specific notes
         const list = [...(dataCopy[periodId]?.[gradeId] || [])];
         parsedStudents.forEach(pS => {
-          const sIdx = list.findIndex(x => x.name.toLowerCase() === pS.name.toLowerCase());
+          const sIdx = list.findIndex(x => normalizeName(x.name) === normalizeName(pS.name));
           if (sIdx !== -1) {
             list[sIdx] = {
               ...list[sIdx],
@@ -760,7 +856,7 @@ export default function App() {
       for (let pNum = 1; pNum <= maxPeriods; pNum++) {
         const pList = state.data[`T${pNum}`]?.[g.id] || [];
         realStudents.forEach(rs => {
-          const stud = pList.find(x => x.id === rs.id);
+          const stud = findStudentForPeriod(pList, rs.id, rs.name);
           if (stud) {
             stud.notes.forEach(val => {
               totalCells++;
@@ -920,6 +1016,7 @@ export default function App() {
             onToggleHideInactive={(hide) => setState(prev => ({ ...prev, hideInactive: hide }))}
             onToggleListNumber={(listNum) => setState(prev => ({ ...prev, showListNumberOnly: listNum }))}
             onOpenActivityEditor={(nIdx) => openActivityEditor(state.currentTrim, state.currentGradeId!, nIdx)}
+            onViewAllReports={() => setState(prev => ({ ...prev, currentView: "all-fichas" }))}
           />
         )}
 
@@ -948,17 +1045,42 @@ export default function App() {
 
         {state.currentView === "ficha" && (() => {
           const activeSid = modals.rename?.sid || "";
-          const activeGid = state.currentGradeId || modals.rename?.gid || "";
+          const activeGid = modals.rename?.gid || state.currentGradeId || "";
           return (
             <FichaView
               state={state}
               studentId={activeSid}
               gradeId={activeGid}
               onBack={() => {
-                setState(prev => ({ ...prev, currentView: "sheet" }));
+                setState(prev => ({ 
+                  ...prev, 
+                  currentView: prev.currentGradeId ? "sheet" : "students" 
+                }));
                 setModals(prev => ({ ...prev, rename: null }));
               }}
               onUpdateManualComment={(text) => handleUpdateManualComment(activeSid, activeGid, text)}
+              onNavigateStudent={(sid) => {
+                setModals(prev => ({ ...prev, rename: { gid: activeGid, sid } }));
+              }}
+              onViewAllReports={() => {
+                setState(prev => ({ ...prev, currentView: "all-fichas" }));
+              }}
+            />
+          );
+        })()}
+
+        {state.currentView === "all-fichas" && (() => {
+          const activeGid = modals.rename?.gid || state.currentGradeId || "";
+          return (
+            <AllFichasView
+              state={state}
+              gradeId={activeGid}
+              onBack={() => {
+                setState(prev => ({ 
+                  ...prev, 
+                  currentView: prev.currentGradeId ? "sheet" : "students"
+                }));
+              }}
             />
           );
         })()}

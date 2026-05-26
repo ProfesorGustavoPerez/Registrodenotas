@@ -85,6 +85,32 @@ export function getGradeAvance(students: Student[]): number {
   return parseFloat(((filledNotesCount / totalNotesCount) * 100).toFixed(1));
 }
 
+export function normalizeName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+export function findStudentForPeriod(
+  periodStudents: Student[] | undefined,
+  studentId: string,
+  studentName?: string
+): Student | undefined {
+  if (!periodStudents) return undefined;
+  
+  if (studentName) {
+    const targetNorm = normalizeName(studentName);
+    if (!targetNorm.includes("estudiante")) {
+      const match = periodStudents.find(x => normalizeName(x.name) === targetNorm);
+      if (match) return match;
+    }
+  }
+  
+  return periodStudents.find(x => x.id === studentId);
+}
+
 export interface RankInfo {
   rank: number;
   total: number;
@@ -110,12 +136,12 @@ export function getStudentRank(
       const count = g ? (g.useGlobalPeriods ? config.periodCount : g.periodCount) : config.periodCount;
       let totalSum = 0;
       for (let i = 1; i <= count; i++) {
-        const ps = data[`T${i}`]?.[gradeId]?.find(x => x.id === s.id);
+        const ps = findStudentForPeriod(data[`T${i}`]?.[gradeId], s.id, s.name);
         totalSum += ps ? calculateFinal(ps.notes, config) : 0;
       }
       finalScore = totalSum / count;
     } else {
-      const ps = data[currentTrim]?.[gradeId]?.find(x => x.id === s.id);
+      const ps = findStudentForPeriod(data[currentTrim]?.[gradeId], s.id, s.name);
       finalScore = ps ? calculateFinal(ps.notes, config) : 0;
     }
     return { id: s.id, score: finalScore };
@@ -151,12 +177,12 @@ export function getGroupAverage(
       const count = g ? (g.useGlobalPeriods ? config.periodCount : g.periodCount) : config.periodCount;
       let totalSum = 0;
       for (let i = 1; i <= count; i++) {
-        const ps = data[`T${i}`]?.[gradeId]?.find(x => x.id === s.id);
+        const ps = findStudentForPeriod(data[`T${i}`]?.[gradeId], s.id, s.name);
         totalSum += ps ? calculateFinal(ps.notes, config) : 0;
       }
       sum += totalSum / count;
     } else {
-      const ps = data[currentTrim]?.[gradeId]?.find(x => x.id === s.id);
+      const ps = findStudentForPeriod(data[currentTrim]?.[gradeId], s.id, s.name);
       sum += ps ? calculateFinal(ps.notes, config) : 0;
     }
   });

@@ -1,6 +1,6 @@
 import { useState, ChangeEvent } from "react";
 import { AppState } from "../types";
-import { calculateFinal, getAvg } from "../utils";
+import { calculateFinal, getAvg, findStudentForPeriod } from "../utils";
 import * as XLSX from "xlsx";
 import { 
   Database, FileSpreadsheet, Download, Upload, Trash2, AlertTriangle 
@@ -82,7 +82,7 @@ export default function BackupView({
         const studentRow = [cleanExcelString(s.name)];
         let sum = 0;
         for (let i = 1; i <= periodCount; i++) {
-          const ps = state.data[`T${i}`]?.[selectedGradeId]?.find(x => x.id === s.id);
+          const ps = findStudentForPeriod(state.data[`T${i}`]?.[selectedGradeId], s.id, s.name);
           const f = ps ? calculateFinal(ps.notes, state.config) : 0;
           sum += f;
           studentRow.push(f.toFixed(1));

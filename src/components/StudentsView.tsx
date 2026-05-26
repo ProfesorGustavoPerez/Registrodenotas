@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { AppState, Student } from "../types";
-import { calculateFinal, getStudentCompliance, getStudentRank, getAvg } from "../utils";
+import { calculateFinal, getStudentCompliance, getStudentRank, getAvg, findStudentForPeriod } from "../utils";
 import StudentActionsDropdown from "./StudentActionsDropdown";
 import { 
   Search, X, Users, AlertCircle, ChevronDown, ChevronUp, BookOpen, 
@@ -239,8 +239,9 @@ export default function StudentsView({
     list.sort((a, b) => {
       let comparison = 0;
 
-      const pA = state.data[state.currentTrim === "ANUAL" ? "T1" : state.currentTrim]?.[a.gradeId]?.find(x => x.id === a.student.id) || a.student;
-      const pB = state.data[state.currentTrim === "ANUAL" ? "T1" : state.currentTrim]?.[b.gradeId]?.find(x => x.id === b.student.id) || b.student;
+      const period = state.currentTrim === "ANUAL" ? "T1" : state.currentTrim;
+      const pA = findStudentForPeriod(state.data[period]?.[a.gradeId], a.student.id, a.student.name) || a.student;
+      const pB = findStudentForPeriod(state.data[period]?.[b.gradeId], b.student.id, b.student.name) || b.student;
 
       if (sortColumn.id === "name") {
         comparison = pA.name.localeCompare(pB.name, "es", { sensitivity: "base" });
@@ -251,40 +252,40 @@ export default function StudentsView({
           if (state.currentTrim === "ANUAL") {
             let totalSum = 0;
             for (let i = 1; i <= count; i++) {
-              const ps = state.data[`T${i}`]?.[item.gradeId]?.find(x => x.id === item.student.id);
+              const ps = findStudentForPeriod(state.data[`T${i}`]?.[item.gradeId], item.student.id, item.student.name);
               totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
             }
             return totalSum / count;
           } else {
-            const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+            const ps = findStudentForPeriod(state.data[state.currentTrim]?.[item.gradeId], item.student.id, item.student.name);
             return ps ? calculateFinal(ps.notes, state.config) : 0;
           }
         };
         comparison = getFinalVal(a) - getFinalVal(b);
       } else if (sortColumn.id === "note" && sortColumn.index !== undefined) {
         const getNoteVal = (item: { student: Student; gradeId: string }) => {
-          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[item.gradeId], item.student.id, item.student.name);
           const notes = ps ? ps.notes : item.student.notes || [];
           return notes[sortColumn.index!] ?? 0;
         };
         comparison = getNoteVal(a) - getNoteVal(b);
       } else if (sortColumn.id === "avgC") {
         const getAvgC = (item: { student: Student; gradeId: string }) => {
-          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[item.gradeId], item.student.id, item.student.name);
           const notes = ps ? ps.notes : item.student.notes || [];
           return getAvg(notes.slice(0, 10));
         };
         comparison = getAvgC(a) - getAvgC(b);
       } else if (sortColumn.id === "avgS") {
         const getAvgS = (item: { student: Student; gradeId: string }) => {
-          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[item.gradeId], item.student.id, item.student.name);
           const notes = ps ? ps.notes : item.student.notes || [];
           return getAvg(notes.slice(10, 20));
         };
         comparison = getAvgS(a) - getAvgS(b);
       } else if (sortColumn.id === "avgEx") {
         const getAvgEx = (item: { student: Student; gradeId: string }) => {
-          const ps = state.data[state.currentTrim]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[item.gradeId], item.student.id, item.student.name);
           const notes = ps ? ps.notes : item.student.notes || [];
           const written = notes[23] ?? 0;
           const rubric = notes[24] ?? 0;
@@ -293,7 +294,7 @@ export default function StudentsView({
         comparison = getAvgEx(a) - getAvgEx(b);
       } else if (sortColumn.id === "period" && sortColumn.index !== undefined) {
         const getPeriodVal = (item: { student: Student; gradeId: string }) => {
-          const pStudent = state.data[`T${sortColumn.index! + 1}`]?.[item.gradeId]?.find(x => x.id === item.student.id);
+          const pStudent = findStudentForPeriod(state.data[`T${sortColumn.index! + 1}`]?.[item.gradeId], item.student.id, item.student.name);
           return pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
         };
         comparison = getPeriodVal(a) - getPeriodVal(b);
@@ -662,7 +663,7 @@ export default function StudentsView({
 
                 // Retrieve active period student record
                 const activeStudent = state.currentTrim !== "ANUAL"
-                  ? (state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id) || s)
+                  ? (findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name) || s)
                   : s;
 
                 const notes = activeStudent.notes || Array(25).fill(0);
@@ -715,7 +716,7 @@ export default function StudentsView({
 
                       {Array.from({ length: state.config.periodCount }).map((_, idx) => {
                         const pNum = idx + 1;
-                        const pStudent = state.data[`T${pNum}`]?.[gid]?.find(x => x.id === s.id);
+                        const pStudent = findStudentForPeriod(state.data[`T${pNum}`]?.[gid], s.id, s.name);
                         const final = pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
                         totalSum += final;
                         return (
@@ -926,7 +927,7 @@ export default function StudentsView({
             <tbody className="divide-y divide-gray-100">
               {processedStudents.map(({ student, gradeId, gradeLabel }, idx) => {
                 const period = state.currentTrim === "ANUAL" ? "T1" : state.currentTrim;
-                const pStudent = state.data[period]?.[gradeId]?.find(x => x.id === student.id) || student;
+                const pStudent = findStudentForPeriod(state.data[period]?.[gradeId], student.id, student.name) || student;
                 
                 const compliance = getStudentCompliance(pStudent.notes, pStudent.reasons);
                 const rankInfo = getStudentRank(student.id, gradeId, state.currentTrim, state.data, state.config);
@@ -937,7 +938,7 @@ export default function StudentsView({
                   const count = g ? (g.useGlobalPeriods ? state.config.periodCount : g.periodCount) : state.config.periodCount;
                   let totalSum = 0;
                   for (let i = 1; i <= count; i++) {
-                    const ps = state.data[`T${i}`]?.[gradeId]?.find(x => x.id === student.id);
+                    const ps = findStudentForPeriod(state.data[`T${i}`]?.[gradeId], student.id, student.name);
                     totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
                   }
                   finalScore = totalSum / count;

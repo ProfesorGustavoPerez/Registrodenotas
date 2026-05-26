@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, ChangeEvent, Fragment, KeyboardEvent } from "react";
 import { AppState, Student } from "../types";
-import { calculateFinal, getAvg, getStudentCompliance, getStudentRank } from "../utils";
+import { calculateFinal, getAvg, getStudentCompliance, getStudentRank, findStudentForPeriod } from "../utils";
 import StudentActionsDropdown from "./StudentActionsDropdown";
 import { 
   ArrowLeft, GraduationCap, Award, Sliders, ToggleLeft, ToggleRight, 
-  Eye, EyeOff, UserX, UserCheck, Sparkles, AlertTriangle, PlusCircle, HelpCircle
+  Eye, EyeOff, UserX, UserCheck, Sparkles, AlertTriangle, PlusCircle, HelpCircle,
+  Printer
 } from "lucide-react";
 
 interface GradeInputProps {
@@ -89,6 +90,7 @@ interface SheetViewProps {
   onToggleHideInactive: (hide: boolean) => void;
   onToggleListNumber: (listNumberOnly: boolean) => void;
   onOpenActivityEditor: (noteIndex: number) => void;
+  onViewAllReports: () => void;
 }
 
 const getNoteCellWidth = (idx: number): { width: string; minWidth: string } => {
@@ -115,6 +117,7 @@ export default function SheetView({
   onToggleHideInactive,
   onToggleListNumber,
   onOpenActivityEditor,
+  onViewAllReports,
 }: SheetViewProps) {
   const [sortColumn, setSortColumn] = useState<{
     id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period";
@@ -273,40 +276,40 @@ export default function SheetView({
           if (state.currentTrim === "ANUAL") {
             let totalSum = 0;
             for (let i = 1; i <= count; i++) {
-              const ps = state.data[`T${i}`]?.[gid]?.find(x => x.id === s.id);
+              const ps = findStudentForPeriod(state.data[`T${i}`]?.[gid], s.id, s.name);
               totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
             }
             return totalSum / count;
           } else {
-            const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+            const ps = findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name);
             return ps ? calculateFinal(ps.notes, state.config) : 0;
           }
         };
         comparison = getFinalVal(a) - getFinalVal(b);
       } else if (sortColumn.id === "note" && sortColumn.index !== undefined) {
         const getNoteVal = (s: Student) => {
-          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name);
           const notes = ps ? ps.notes : s.notes || [];
           return notes[sortColumn.index!] ?? 0;
         };
         comparison = getNoteVal(a) - getNoteVal(b);
       } else if (sortColumn.id === "avgC") {
         const getAvgC = (s: Student) => {
-          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name);
           const notes = ps ? ps.notes : s.notes || [];
           return getAvg(notes.slice(0, 10));
         };
         comparison = getAvgC(a) - getAvgC(b);
       } else if (sortColumn.id === "avgS") {
         const getAvgS = (s: Student) => {
-          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name);
           const notes = ps ? ps.notes : s.notes || [];
           return getAvg(notes.slice(10, 20));
         };
         comparison = getAvgS(a) - getAvgS(b);
       } else if (sortColumn.id === "avgEx") {
         const getAvgEx = (s: Student) => {
-          const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+          const ps = findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name);
           const notes = ps ? ps.notes : s.notes || [];
           const written = notes[23] ?? 0;
           const rubric = notes[24] ?? 0;
@@ -315,7 +318,7 @@ export default function SheetView({
         comparison = getAvgEx(a) - getAvgEx(b);
       } else if (sortColumn.id === "period" && sortColumn.index !== undefined) {
         const getPeriodVal = (s: Student) => {
-          const pStudent = state.data[`T${sortColumn.index! + 1}`]?.[gid]?.find(x => x.id === s.id);
+          const pStudent = findStudentForPeriod(state.data[`T${sortColumn.index! + 1}`]?.[gid], s.id, s.name);
           return pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
         };
         comparison = getPeriodVal(a) - getPeriodVal(b);
@@ -357,12 +360,12 @@ export default function SheetView({
       if (state.currentTrim === "ANUAL") {
         let totalSum = 0;
         for (let i = 1; i <= count; i++) {
-          const ps = state.data[`T${i}`]?.[gid]?.find(x => x.id === s.id);
+          const ps = findStudentForPeriod(state.data[`T${i}`]?.[gid], s.id, s.name);
           totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
         }
         score = totalSum / count;
       } else {
-        const ps = state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id);
+        const ps = findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name);
         score = ps ? calculateFinal(ps.notes, state.config) : 0;
       }
       return { student: s, score };
@@ -485,6 +488,16 @@ export default function SheetView({
             ))}
             <option value="ANUAL">RESUMEN ANUAL</option>
           </select>
+
+          {/* Botón para Ver Todos los Informes del Grado */}
+          <button
+            onClick={onViewAllReports}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-black uppercase cursor-pointer transition-colors tracking-wider"
+            title="Ver e imprimir todos los informes del grado juntos"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir Informes
+          </button>
         </div>
       </div>
 
@@ -968,7 +981,7 @@ export default function SheetView({
                 
                 // Get correct student data for the current active period/trim, fallback to s
                 const activeStudent = state.currentTrim !== "ANUAL"
-                  ? (state.data[state.currentTrim]?.[gid]?.find(x => x.id === s.id) || s)
+                  ? (findStudentForPeriod(state.data[state.currentTrim]?.[gid], s.id, s.name) || s)
                   : s;
                 
                 const notes = activeStudent.notes || Array(25).fill(0);
@@ -1027,7 +1040,7 @@ export default function SheetView({
 
                       {Array.from({ length: count }).map((_, idx) => {
                         const pNum = idx + 1;
-                        const pStudent = state.data[`T${pNum}`]?.[gid]?.find(x => x.id === s.id);
+                        const pStudent = findStudentForPeriod(state.data[`T${pNum}`]?.[gid], s.id, s.name);
                         const final = pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
                         totalSum += final;
                         return (

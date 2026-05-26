@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { AppState, Student } from "../types";
 import { 
-  calculateFinal, getAvg, getStudentCompliance, getStudentRank, getGroupAverage 
+  calculateFinal, getAvg, getStudentCompliance, getStudentRank, getGroupAverage, findStudentForPeriod
 } from "../utils";
 import LowGradeReportDetails from "./LowGradeReportDetails";
-import { Printer, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 
 interface FichaViewProps {
   state: AppState;
@@ -12,6 +12,8 @@ interface FichaViewProps {
   gradeId: string;
   onBack: () => void;
   onUpdateManualComment: (comment: string) => void;
+  onNavigateStudent?: (studentId: string) => void;
+  onViewAllReports?: () => void;
 }
 
 export default function FichaView({
@@ -20,9 +22,20 @@ export default function FichaView({
   gradeId,
   onBack,
   onUpdateManualComment,
+  onNavigateStudent,
+  onViewAllReports,
 }: FichaViewProps) {
   const [printScale, setPrintScale] = useState(0.95);
   const g = state.config.grades.find(x => x.id === gradeId);
+
+  // Retrieve alphabetical list of active, real students in the grade
+  const sortedStudents = (state.data["T1"]?.[gradeId] || [])
+    .filter(s => !s.isDisabled && !s.name.includes("Estudiante"))
+    .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+
+  const currentIdx = sortedStudents.findIndex(s => s.id === studentId);
+  const prevStudent = currentIdx > 0 ? sortedStudents[currentIdx - 1] : null;
+  const nextStudent = currentIdx < sortedStudents.length - 1 ? sortedStudents[currentIdx + 1] : null;
   
   // Base details reference
   const sBase = state.data["T1"]?.[gradeId]?.find(x => x.id === studentId);
@@ -32,7 +45,7 @@ export default function FichaView({
   // Individual student data matching the period
   const sPeriod = isAnual 
     ? sBase 
-    : (state.data[activePeriod]?.[gradeId]?.find(x => x.id === studentId) || sBase);
+    : (findStudentForPeriod(state.data[activePeriod]?.[gradeId], studentId, sBase?.name) || sBase);
 
   // If they are missing, we should render nothing and trigger onBack in useEffect
   useEffect(() => {
@@ -66,7 +79,7 @@ export default function FichaView({
     ? (() => {
         let totalSum = 0;
         for (let i = 1; i <= count; i++) {
-          const ps = state.data[`T${i}`]?.[gradeId]?.find(x => x.id === studentId);
+          const ps = findStudentForPeriod(state.data[`T${i}`]?.[gradeId], studentId, sBase?.name);
           totalSum += ps ? calculateFinal(ps.notes, state.config) : 0;
         }
         return totalSum / count;
@@ -91,20 +104,53 @@ export default function FichaView({
 
   return (
     <div className="space-y-6">
-      {/* Barra de control para volver e imprimir */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-gray-200 bg-white p-3.5 rounded-lg shadow-2xs w-full max-w-2xl mx-auto no-print">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 px-4 py-2 border border-gray-300 rounded font-bold text-xs uppercase cursor-pointer hover:bg-gray-100 transition-colors text-gray-700"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Volver
-        </button>
+      {/* Barra de control para volver, navegar e imprimir */}
+      <div className="flex flex-col xl:flex-row items-center justify-between gap-4 border border-slate-200 bg-white p-3.5 rounded-lg shadow-2xs w-full max-w-4xl mx-auto no-print">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 rounded font-bold text-xs uppercase cursor-pointer hover:bg-slate-50 transition-colors text-slate-700"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver
+          </button>
+
+          {/* Navigation through students in alphabetical order */}
+          {sortedStudents.length > 1 && (
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-1 rounded">
+              <button
+                onClick={() => prevStudent && onNavigateStudent?.(prevStudent.id)}
+                disabled={!prevStudent}
+                className={`p-1 rounded cursor-pointer transition-colors ${
+                  prevStudent ? "text-slate-700 hover:bg-slate-200" : "text-slate-300 cursor-not-allowed"
+                }`}
+                title={prevStudent ? `Anterior: ${prevStudent.name}` : undefined}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <span className="text-[10px] font-mono font-extrabold px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-600 min-w-14 text-center">
+                {currentIdx !== -1 ? `${currentIdx + 1} / ${sortedStudents.length}` : `-- / ${sortedStudents.length}`}
+              </span>
+              
+              <button
+                onClick={() => nextStudent && onNavigateStudent?.(nextStudent.id)}
+                disabled={!nextStudent}
+                className={`p-1 rounded cursor-pointer transition-colors ${
+                  nextStudent ? "text-slate-700 hover:bg-slate-200" : "text-slate-300 cursor-not-allowed"
+                }`}
+                title={nextStudent ? `Siguiente: ${nextStudent.name}` : undefined}
+              >
+                <ChevronRight className="w-4 h-4 text-black" />
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Ajuste de escala interactivo */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Escala:</span>
-          <div className="flex border border-gray-300 rounded overflow-hidden shadow-2xs">
+        <div className="flex items-center gap-2 select-none">
+          <span className="text-[10.5px] font-black text-slate-700 uppercase tracking-wider">Escala Impresión:</span>
+          <div className="flex border border-slate-300 rounded overflow-hidden shadow-2xs">
             {[1.0, 0.95, 0.90, 0.85, 0.80, 0.75].map((val) => (
               <button
                 key={val}
@@ -121,13 +167,26 @@ export default function FichaView({
           </div>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
-        >
-          <Printer className="w-4 h-4" />
-          Imprimir Reporte
-        </button>
+        <div className="flex items-center gap-2">
+          {onViewAllReports && (
+            <button
+              onClick={onViewAllReports}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
+              title="Ver todos los reportes de este grupo juntos para imprimirlos a la vez"
+            >
+              <FileText className="w-4 h-4" />
+              Ver Todos (Impresión)
+            </button>
+          )}
+
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimir Reporte
+          </button>
+        </div>
       </div>
 
       {/* Contenedor Hoja de Impresión */}
@@ -184,7 +243,7 @@ export default function FichaView({
                   <tbody className="divide-y divide-black/60">
                     {Array.from({ length: count }).map((_, idx) => {
                       const pNum = idx + 1;
-                      const pStudent = state.data[`T${pNum}`]?.[gradeId]?.find(x => x.id === studentId);
+                      const pStudent = findStudentForPeriod(state.data[`T${pNum}`]?.[gradeId], studentId, sBase?.name);
                       const finalNote = pStudent ? calculateFinal(pStudent.notes, state.config) : 0;
                       const pCompliance = pStudent ? getStudentCompliance(pStudent.notes, pStudent.reasons) : { count: 0, total: 25, percentage: 0 };
                       return (
