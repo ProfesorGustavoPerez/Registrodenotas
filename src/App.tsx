@@ -268,6 +268,9 @@ export default function App() {
     activityNameEditor: null,
   });
 
+  // Active student targets for Ficha/Report view specifically (to avoid conflict with rename)
+  const [activeFicha, setActiveFicha] = useState<{ gid: string; sid: string } | null>(null);
+
   // Modal manual data state bindings
   const [addBulkText, setAddBulkText] = useState("");
   const [renameInputValue, setRenameInputValue] = useState("");
@@ -986,7 +989,7 @@ export default function App() {
             onViewReport={(gid, sid) => {
               setState(prev => ({ ...prev, currentGradeId: gid, currentView: "ficha" }));
               // Setup correct active student target parameters in view state context
-              setModals(prev => ({ ...prev, rename: { gid, sid } }));
+              setActiveFicha({ gid, sid });
             }}
             onDelete={openDeleteModal}
             onPeriodChange={(trim) => setState(prev => ({ ...prev, currentTrim: trim }))}
@@ -1004,7 +1007,7 @@ export default function App() {
             onToggleStatus={(sid) => handleToggleStatus(state.currentGradeId!, sid)}
             onMigrate={(sid) => openMigrateModal(state.currentGradeId!, sid)}
             onViewReport={(sid) => {
-              setModals(prev => ({ ...prev, rename: { gid: state.currentGradeId!, sid } }));
+              setActiveFicha({ gid: state.currentGradeId!, sid });
               setState(prev => ({ ...prev, currentView: "ficha" }));
             }}
             onDelete={(sid) => openDeleteModal(state.currentGradeId!, sid)}
@@ -1044,8 +1047,8 @@ export default function App() {
         )}
 
         {state.currentView === "ficha" && (() => {
-          const activeSid = modals.rename?.sid || "";
-          const activeGid = modals.rename?.gid || state.currentGradeId || "";
+          const activeSid = activeFicha?.sid || "";
+          const activeGid = activeFicha?.gid || state.currentGradeId || "";
           return (
             <FichaView
               state={state}
@@ -1056,11 +1059,11 @@ export default function App() {
                   ...prev, 
                   currentView: prev.currentGradeId ? "sheet" : "students" 
                 }));
-                setModals(prev => ({ ...prev, rename: null }));
+                setActiveFicha(null);
               }}
               onUpdateManualComment={(text) => handleUpdateManualComment(activeSid, activeGid, text)}
               onNavigateStudent={(sid) => {
-                setModals(prev => ({ ...prev, rename: { gid: activeGid, sid } }));
+                setActiveFicha({ gid: activeGid, sid });
               }}
               onViewAllReports={() => {
                 setState(prev => ({ ...prev, currentView: "all-fichas" }));
@@ -1070,7 +1073,7 @@ export default function App() {
         })()}
 
         {state.currentView === "all-fichas" && (() => {
-          const activeGid = modals.rename?.gid || state.currentGradeId || "";
+          const activeGid = state.currentGradeId || activeFicha?.gid || "";
           return (
             <AllFichasView
               state={state}
@@ -1080,6 +1083,7 @@ export default function App() {
                   ...prev, 
                   currentView: prev.currentGradeId ? "sheet" : "students"
                 }));
+                setActiveFicha(null);
               }}
             />
           );

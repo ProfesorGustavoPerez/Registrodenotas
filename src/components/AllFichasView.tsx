@@ -104,7 +104,7 @@ export default function AllFichasView({
 
         <button
           onClick={handlePrint}
-          className="flex items-center gap-1.5 px-4 py-2 bg-indigo-650 hover:bg-indigo-750 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm"
         >
           <Printer className="w-4 h-4" />
           Imprimir Todos
