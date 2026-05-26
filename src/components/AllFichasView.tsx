@@ -88,7 +88,7 @@ export default function AllFichasView({
         <div className="flex items-center gap-2 select-none">
           <span className="text-[10.5px] font-black text-slate-700 uppercase tracking-wider">Escala Impresión:</span>
           <div className="flex border border-slate-300 rounded overflow-hidden shadow-2xs">
-            {[1.0, 0.95, 0.90, 0.85, 0.80, 0.75].map((val) => (
+            {[1.0, 0.90, 0.80, 0.70, 0.60, 0.50].map((val) => (
               <button
                 key={val}
                 onClick={() => setPrintScale(val)}
