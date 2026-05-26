@@ -797,40 +797,111 @@ export default function App() {
 
     setState(prev => {
       const dataCopy = { ...prev.data };
-      
+      const periods = ["T1", "T2", "T3", "T4"];
+
+      // Safeguard initialization
+      periods.forEach(p => {
+        if (!dataCopy[p]) dataCopy[p] = {};
+        if (!dataCopy[p][gradeId]) {
+          dataCopy[p][gradeId] = Array.from({ length: 40 }, (_, i) => ({
+            id: `S-${gradeId}-${i}`,
+            name: `Estudiante ${i + 1}`,
+            notes: Array(25).fill(null),
+            reasons: Array(25).fill(null),
+            isDisabled: false,
+            manualComment: "",
+          }));
+        }
+      });
+
+      // Maintain a copy of current lists for in-place modifications
+      const lists: Record<string, Student[]> = {};
+      periods.forEach(p => {
+        lists[p] = [...dataCopy[p][gradeId]];
+      });
+
       if (periodId === "ANUAL") {
-        // Rewrite global names starting at T1
-        ["T1", "T2", "T3", "T4"].forEach(trim => {
-          const list = [...(dataCopy[trim]?.[gradeId] || [])];
-          parsedStudents.forEach((pS, pIdx) => {
-            if (pIdx < 40 && list[pIdx]) {
-              list[pIdx] = { ...list[pIdx], name: pS.name };
-              if (trim === "T1") affectedCount++;
+        // Just register names/creating them and synchronizing across all periods
+        parsedStudents.forEach((pS) => {
+          const normName = normalizeName(pS.name);
+          let sIdx = lists["T1"].findIndex(x => normalizeName(x.name) === normName);
+
+          if (sIdx === -1) {
+            // Find placeholder slot to occupy
+            sIdx = lists["T1"].findIndex(x => x.name.includes("Estudiante") || x.isDisabled);
+            if (sIdx !== -1) {
+              const baseId = lists["T1"][sIdx].id;
+              periods.forEach(p => {
+                lists[p][sIdx] = {
+                  ...lists[p][sIdx],
+                  id: baseId,
+                  name: pS.name,
+                  isDisabled: false,
+                  addedAt: Date.now() + sIdx,
+                };
+              });
+              affectedCount++;
             }
-          });
-          dataCopy[trim][gradeId] = list;
+          } else {
+            // Student exists, ensure they are enabled
+            periods.forEach(p => {
+              lists[p][sIdx] = {
+                ...lists[p][sIdx],
+                isDisabled: false,
+              };
+            });
+            affectedCount++;
+          }
         });
       } else {
-        // Upload specific notes and reasons
-        const list = [...(dataCopy[periodId]?.[gradeId] || [])];
-        parsedStudents.forEach(pS => {
-          const sIdx = list.findIndex(x => normalizeName(x.name) === normalizeName(pS.name));
+        // Upload specific notes and reasons for a specific period
+        parsedStudents.forEach((pS) => {
+          const normName = normalizeName(pS.name);
+          let sIdx = lists["T1"].findIndex(x => normalizeName(x.name) === normName);
+
+          if (sIdx === -1) {
+            // Find placeholder slot to occupy
+            sIdx = lists["T1"].findIndex(x => x.name.includes("Estudiante") || x.isDisabled);
+            if (sIdx !== -1) {
+              const baseId = lists["T1"][sIdx].id;
+              periods.forEach(p => {
+                lists[p][sIdx] = {
+                  ...lists[p][sIdx],
+                  id: baseId,
+                  name: pS.name,
+                  isDisabled: false,
+                  addedAt: Date.now() + sIdx,
+                };
+              });
+            }
+          }
+
           if (sIdx !== -1) {
-            list[sIdx] = {
-              ...list[sIdx],
+            // Make sure they are enabled
+            periods.forEach(p => {
+              lists[p][sIdx].isDisabled = false;
+            });
+
+            // Set detailed notes & reasons to the selected period
+            lists[periodId][sIdx] = {
+              ...lists[periodId][sIdx],
               notes: pS.notes,
-              reasons: pS.reasons || list[sIdx].reasons || Array(25).fill(null)
+              reasons: pS.reasons || lists[periodId][sIdx].reasons || Array(25).fill(null)
             };
             affectedCount++;
           }
         });
-        dataCopy[periodId][gradeId] = list;
       }
+
+      // Write lists back into dataCopy
+      periods.forEach(p => {
+        dataCopy[p][gradeId] = lists[p];
+      });
 
       return { ...prev, data: dataCopy };
     });
 
-    showToast("success", `¡Excel importado! ${affectedCount} registros actualizados.`);
+    showToast("success", `¡Excel importado! ${affectedCount} alumnos registrados/actualizados.`);
   };
 
   // GLOBAL ACTIONS

@@ -189,12 +189,16 @@ export default function BackupView({
         
         const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
         
-        // Look for the "Estudiante" cell index
+        // Look for the "Estudiante" cell index anywhere in the rows
         let studentHeaderRowIndex = -1;
+        let studentColIndex = 0;
         for (let i = 0; i < rows.length; i++) {
-          const firstCell = rows[i][0];
-          if (firstCell && firstCell.toString().trim().toLowerCase() === "estudiante") {
+          const row = rows[i];
+          if (!row) continue;
+          const colIdx = row.findIndex(cell => cell && cell.toString().trim().toLowerCase().includes("estudiante"));
+          if (colIdx !== -1) {
             studentHeaderRowIndex = i;
+            studentColIndex = colIdx;
             break;
           }
         }
@@ -208,7 +212,8 @@ export default function BackupView({
 
         for (let i = studentHeaderRowIndex + 1; i < rows.length; i++) {
           const row = rows[i];
-          const studentName = row[0]?.toString().trim();
+          if (!row) continue;
+          const studentName = row[studentColIndex]?.toString().trim();
           if (!studentName) continue;
 
           const parseNote = (val: any) => {
@@ -227,37 +232,36 @@ export default function BackupView({
           const reasons: (string | null)[] = Array(25).fill(null);
 
           if (selectedPeriodId !== "ANUAL") {
-            // Normal period
+            // Normal period relative to studentColIndex
             // Cotidianas: cells indices 1 to 10 mapped to notes 0 to 9
-            for (let n = 0; n < 10; n++) notes[n] = parseNote(row[n + 1]);
+            for (let n = 0; n < 10; n++) notes[n] = parseNote(row[studentColIndex + 1 + n]);
             
-            // Santillana: cells indices 12 to 21 mapped to notes 10 to 19 (skip element index 11 which is average)
-            for (let n = 0; n < 10; n++) notes[n + 10] = parseNote(row[n + 12]); // column average is index 11
+            // Santillana: cells indices 12 to 21 mapped to notes 10 to 19 (skip average)
+            for (let n = 0; n < 10; n++) notes[n + 10] = parseNote(row[studentColIndex + 12 + n]);
 
-            // Integradora, Proyecto, Holistica indexes in Excel are 23, 24, 25 (following segment 10-19 average at 22)
-            notes[20] = parseNote(row[23]);
-            notes[21] = parseNote(row[24]);
-            notes[22] = parseNote(row[25]);
+            // Integradora, Proyecto, Holistica
+            notes[20] = parseNote(row[studentColIndex + 23]);
+            notes[21] = parseNote(row[studentColIndex + 24]);
+            notes[22] = parseNote(row[studentColIndex + 25]);
 
-            // Exámenes: indices 26 and 27 mapped to notes 23 and 24 (following exams average is row index 28)
-            notes[23] = parseNote(row[26]);
-            notes[24] = parseNote(row[27]);
+            // Exámenes
+            notes[23] = parseNote(row[studentColIndex + 26]);
+            notes[24] = parseNote(row[studentColIndex + 27]);
 
-            // Incidences: columns starting from index 30 to 54 in row
-            // Cotidianas 0-9 -> columns 30 to 39
-            for (let n = 0; n < 10; n++) reasons[n] = parseReason(row[n + 30]);
+            // Incidences: Cotidianas 0-9
+            for (let n = 0; n < 10; n++) reasons[n] = parseReason(row[studentColIndex + 30 + n]);
 
-            // Santillana 10-19 -> columns 40 to 49
-            for (let n = 0; n < 10; n++) reasons[n + 10] = parseReason(row[n + 40]);
+            // Santillana 10-19
+            for (let n = 0; n < 10; n++) reasons[n + 10] = parseReason(row[studentColIndex + 40 + n]);
 
-            // Integradora, Proyecto, Holistica 20-22 -> columns 50, 51, 52
-            reasons[20] = parseReason(row[50]);
-            reasons[21] = parseReason(row[51]);
-            reasons[22] = parseReason(row[52]);
+            // Integradora, Proyecto, Holistica 20-22
+            reasons[20] = parseReason(row[studentColIndex + 50]);
+            reasons[21] = parseReason(row[studentColIndex + 51]);
+            reasons[22] = parseReason(row[studentColIndex + 52]);
 
-            // Exámenes 23, 24 -> columns 53, 54
-            reasons[23] = parseReason(row[53]);
-            reasons[24] = parseReason(row[54]);
+            // Exámenes 23, 24
+            reasons[23] = parseReason(row[studentColIndex + 53]);
+            reasons[24] = parseReason(row[studentColIndex + 54]);
           }
 
           parsedStudents.push({
