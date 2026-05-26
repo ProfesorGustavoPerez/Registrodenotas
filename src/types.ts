@@ -27,6 +27,7 @@ export interface Config {
   blockWeights: number[];
   grades: Grade[];
   theme: string;
+  appVersion?: string;
 }
 
 export interface AppState {
@@ -38,4 +39,6 @@ export interface AppState {
   hideInactive: boolean;
   showListNumberOnly: boolean;
   data: Record<string, Record<string, Student[]>>; // Trim (T1, T2...) -> GradeId (G1, G2...) -> List of Student
+  activityNames?: Record<string, Record<string, (string | null)[]>>; // Trim -> GradeId -> 25 strings
+  activityHistory?: string[]; // Custom activity names history pool
 }

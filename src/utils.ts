@@ -30,7 +30,12 @@ export function isNoEntregoIncident(reason: string | null | undefined): boolean 
   const normalized = reason.toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  return normalized.includes("no entrego s.p.") || normalized.includes("no entrego sp");
+  return normalized.includes("no entrego s.p.") || 
+         normalized.includes("no entrego sp") ||
+         normalized.includes("inasistencia s.p.") ||
+         normalized.includes("inasistencia sp") ||
+         normalized.includes("inasitencia s.p.") ||
+         normalized.includes("inasitencia sp");
 }
 
 export interface StudentCompliance {
@@ -166,7 +171,11 @@ export interface LowGradeAnalysis {
   reason: string | null;
 }
 
-export function getLowGradesAnalysis(student: Student, config: Config): LowGradeAnalysis[] {
+export function getLowGradesAnalysis(
+  student: Student, 
+  config: Config, 
+  activityNames?: (string | null)[]
+): LowGradeAnalysis[] {
   const result: LowGradeAnalysis[] = [];
   const blockNames = config.blockNames;
   
@@ -175,24 +184,39 @@ export function getLowGradesAnalysis(student: Student, config: Config): LowGrade
       let blockName = "";
       let activityName = "";
       
+      const customName = activityNames?.[index];
+      
       if (index < 10) {
         blockName = blockNames[0];
-        activityName = `${blockNames[0]} (Actividad ${index + 1})`;
+        activityName = customName 
+          ? `${blockNames[0]} (${customName})` 
+          : `${blockNames[0]} (Actividad ${index + 1})`;
       } else if (index < 20) {
         blockName = blockNames[1];
-        activityName = `${blockNames[1]} (Actividad ${index - 9})`;
+        activityName = customName 
+          ? `${blockNames[1]} (${customName})` 
+          : `${blockNames[1]} (Actividad ${index - 9})`;
       } else if (index === 20) {
         blockName = blockNames[2];
-        activityName = blockNames[2];
+        activityName = customName 
+          ? `${blockNames[2]} (${customName})` 
+          : blockNames[2];
       } else if (index === 21) {
         blockName = blockNames[3];
-        activityName = blockNames[3];
+        activityName = customName 
+          ? `${blockNames[3]} (${customName})` 
+          : blockNames[3];
       } else if (index === 22) {
         blockName = blockNames[4];
-        activityName = blockNames[4];
+        activityName = customName 
+          ? `${blockNames[4]} (${customName})` 
+          : blockNames[4];
       } else {
         blockName = blockNames[5];
-        activityName = index === 23 ? `${blockNames[5]} - Escrito` : `${blockNames[5]} - Rúbrica`;
+        const defaultSubName = index === 23 ? "Escrito" : "Rúbrica";
+        activityName = customName 
+          ? `${blockNames[5]} (${customName})` 
+          : `${blockNames[5]} - ${defaultSubName}`;
       }
       
       result.push({
@@ -202,6 +226,71 @@ export function getLowGradesAnalysis(student: Student, config: Config): LowGrade
         reason: student.reasons[index]
       });
     }
+  });
+  
+  return result;
+}
+
+export interface GradeAnalysis {
+  activityName: string;
+  note: number | null;
+  blockName: string;
+  reason: string | null;
+}
+
+export function getAllGradesAnalysis(
+  student: Student, 
+  config: Config, 
+  activityNames?: (string | null)[]
+): GradeAnalysis[] {
+  const result: GradeAnalysis[] = [];
+  const blockNames = config.blockNames;
+  
+  student.notes.forEach((note, index) => {
+    let blockName = "";
+    let activityName = "";
+    
+    const customName = activityNames?.[index];
+    
+    if (index < 10) {
+      blockName = blockNames[0];
+      activityName = customName 
+        ? `${blockNames[0]} (${customName})` 
+        : `${blockNames[0]} (Actividad ${index + 1})`;
+    } else if (index < 20) {
+      blockName = blockNames[1];
+      activityName = customName 
+        ? `${blockNames[1]} (${customName})` 
+        : `${blockNames[1]} (Actividad ${index - 9})`;
+    } else if (index === 20) {
+      blockName = blockNames[2];
+      activityName = customName 
+        ? `${blockNames[2]} (${customName})` 
+        : blockNames[2];
+    } else if (index === 21) {
+      blockName = blockNames[3];
+      activityName = customName 
+        ? `${blockNames[3]} (${customName})` 
+        : blockNames[3];
+    } else if (index === 22) {
+      blockName = blockNames[4];
+      activityName = customName 
+        ? `${blockNames[4]} (${customName})` 
+        : blockNames[4];
+    } else {
+      blockName = blockNames[5];
+      const defaultSubName = index === 23 ? "Escrito" : "Rúbrica";
+      activityName = customName 
+        ? `${blockNames[5]} (${customName})` 
+        : `${blockNames[5]} - ${defaultSubName}`;
+    }
+    
+    result.push({
+      activityName,
+      note,
+      blockName,
+      reason: student.reasons[index]
+    });
   });
   
   return result;

@@ -88,14 +88,15 @@ interface SheetViewProps {
   onToggleRankings: (visible: boolean) => void;
   onToggleHideInactive: (hide: boolean) => void;
   onToggleListNumber: (listNumberOnly: boolean) => void;
+  onOpenActivityEditor: (noteIndex: number) => void;
 }
 
 const getNoteCellWidth = (idx: number): { width: string; minWidth: string } => {
-  if (idx >= 0 && idx <= 9) return { width: "62px", minWidth: "62px" }; // Cotidianas
-  if (idx >= 10 && idx <= 19) return { width: "62px", minWidth: "62px" }; // Santillana
+  if (idx >= 0 && idx <= 9) return { width: "72px", minWidth: "72px" }; // Cotidianas
+  if (idx >= 10 && idx <= 19) return { width: "72px", minWidth: "72px" }; // Santillana
   if (idx >= 20 && idx <= 22) return { width: "100px", minWidth: "100px" }; // Trabajos integradores, Proyectos, Holística
-  if (idx >= 23 && idx <= 24) return { width: "65px", minWidth: "65px" }; // Examen escrito, Examen rúbrica
-  return { width: "62px", minWidth: "62px" };
+  if (idx >= 23 && idx <= 24) return { width: "72px", minWidth: "72px" }; // Examen escrito, Examen rúbrica
+  return { width: "72px", minWidth: "72px" };
 };
 
 export default function SheetView({
@@ -113,6 +114,7 @@ export default function SheetView({
   onToggleRankings,
   onToggleHideInactive,
   onToggleListNumber,
+  onOpenActivityEditor,
 }: SheetViewProps) {
   const [sortColumn, setSortColumn] = useState<{
     id: "name" | "final" | "note" | "avgC" | "avgS" | "avgEx" | "period";
@@ -567,18 +569,18 @@ export default function SheetView({
                 ...(state.currentTrim !== "ANUAL"
                   ? [
                       ...Array.from({ length: 10 }).map((_, i) => (
-                        <col key={`col1-${i}`} style={{ width: "62px", minWidth: "62px" }} />
+                        <col key={`col1-${i}`} style={{ width: "72px", minWidth: "72px" }} />
                       )),
                       <col key="col-promc" style={{ width: "72px", minWidth: "72px" }} />,
                       ...Array.from({ length: 10 }).map((_, i) => (
-                        <col key={`col2-${i}`} style={{ width: "62px", minWidth: "62px" }} />
+                        <col key={`col2-${i}`} style={{ width: "72px", minWidth: "72px" }} />
                       )),
                       <col key="col-proms" style={{ width: "72px", minWidth: "72px" }} />,
                       <col key="col-integradores" style={{ width: "100px", minWidth: "100px" }} />,
                       <col key="col-proyectos" style={{ width: "100px", minWidth: "100px" }} />,
                       <col key="col-holistica" style={{ width: "100px", minWidth: "100px" }} />,
-                      <col key="col-escrito" style={{ width: "65px", minWidth: "65px" }} />,
-                      <col key="col-rubrica" style={{ width: "65px", minWidth: "65px" }} />,
+                      <col key="col-escrito" style={{ width: "72px", minWidth: "72px" }} />,
+                      <col key="col-rubrica" style={{ width: "72px", minWidth: "72px" }} />,
                       <col key="col-promex" style={{ width: "75px", minWidth: "75px" }} />,
                       <col key="col-promfinal" style={{ width: "130px", minWidth: "130px" }} />
                     ]
@@ -648,10 +650,10 @@ export default function SheetView({
                         {renderSortIndicator("name")}
                       </div>
                     </th>
-                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none pb-4" colSpan={11} style={{ width: "792px", minWidth: "792px" }}>
                       {blockNames[0]} ({blockWeights[0]}%)
                     </th>
-                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={11} style={{ width: "692px", minWidth: "692px" }}>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none pb-4" colSpan={11} style={{ width: "792px", minWidth: "792px" }}>
                       {blockNames[1]} ({blockWeights[1]}%)
                     </th>
                     <th
@@ -661,11 +663,32 @@ export default function SheetView({
                       onClick={() => toggleSort("note", 20)}
                       title={`Haga clic para ordenar por ${blockNames[2]}`}
                     >
-                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[2]}>
-                        <span>{blockNames[2]}</span>
-                        {renderSortIndicator("note", 20)}
+                      <div className="flex flex-col items-center justify-center min-h-[64px] py-1 select-none w-full">
+                        <div className="flex items-center justify-center gap-0.5 w-full">
+                          <span className="truncate max-w-[65px]" title={blockNames[2]}>{blockNames[2]}</span>
+                          {renderSortIndicator("note", 20)}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenActivityEditor(20);
+                            }}
+                            className="w-4 h-4 rounded-full bg-white hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                            title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[20] ? `Editar: ${state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[20]}` : "Haga clic para poner nombre"}
+                          >
+                            a
+                          </button>
+                        </div>
+                        <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[2]}%)</div>
+                        <div 
+                          className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1.5 ${
+                            state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[20] ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded" : "text-gray-300 italic font-mono"
+                          }`}
+                          title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[20] || "Sin Nombre"}
+                        >
+                          {state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[20] || "-"}
+                        </div>
                       </div>
-                      <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[2]}%)</div>
                     </th>
                     <th
                       className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
@@ -674,11 +697,32 @@ export default function SheetView({
                       onClick={() => toggleSort("note", 21)}
                       title={`Haga clic para ordenar por ${blockNames[3]}`}
                     >
-                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[3]}>
-                        <span>{blockNames[3]}</span>
-                        {renderSortIndicator("note", 21)}
+                      <div className="flex flex-col items-center justify-center min-h-[64px] py-1 select-none w-full">
+                        <div className="flex items-center justify-center gap-0.5 w-full">
+                          <span className="truncate max-w-[65px]" title={blockNames[3]}>{blockNames[3]}</span>
+                          {renderSortIndicator("note", 21)}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenActivityEditor(21);
+                            }}
+                            className="w-4 h-4 rounded-full bg-white hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                            title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[21] ? `Editar: ${state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[21]}` : "Haga clic para poner nombre"}
+                          >
+                            a
+                          </button>
+                        </div>
+                        <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[3]}%)</div>
+                        <div 
+                          className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1.5 ${
+                            state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[21] ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded" : "text-gray-300 italic font-mono"
+                          }`}
+                          title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[21] || "Sin Nombre"}
+                        >
+                          {state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[21] || "-"}
+                        </div>
                       </div>
-                      <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[3]}%)</div>
                     </th>
                     <th
                       className="p-1 px-1 border-r border-b-2 text-[10px] uppercase tracking-tight leading-3 text-center bg-slate-50 text-gray-700 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors group/th"
@@ -687,13 +731,34 @@ export default function SheetView({
                       onClick={() => toggleSort("note", 22)}
                       title={`Haga clic para ordenar por ${blockNames[4]}`}
                     >
-                      <div className="font-bold min-h-[24px] flex items-center justify-center gap-0.5" title={blockNames[4]}>
-                        <span>{blockNames[4]}</span>
-                        {renderSortIndicator("note", 22)}
+                      <div className="flex flex-col items-center justify-center min-h-[64px] py-1 select-none w-full">
+                        <div className="flex items-center justify-center gap-0.5 w-full">
+                          <span className="truncate max-w-[65px]" title={blockNames[4]}>{blockNames[4]}</span>
+                          {renderSortIndicator("note", 22)}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenActivityEditor(22);
+                            }}
+                            className="w-4 h-4 rounded-full bg-white hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                            title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[22] ? `Editar: ${state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[22]}` : "Haga clic para poner nombre"}
+                          >
+                            a
+                          </button>
+                        </div>
+                        <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[4]}%)</div>
+                        <div 
+                          className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1.5 ${
+                            state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[22] ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded" : "text-gray-300 italic font-mono"
+                          }`}
+                          title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[22] || "Sin Nombre"}
+                        >
+                          {state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[22] || "-"}
+                        </div>
                       </div>
-                      <div className="text-emerald-700 font-extrabold mt-0.5">({blockWeights[4]}%)</div>
                     </th>
-                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none" colSpan={3} style={{ width: "205px", minWidth: "205px" }}>
+                    <th className="p-2 border-r border-b bg-slate-100 border-gray-200 select-none pb-4" colSpan={3} style={{ width: "219px", minWidth: "219px" }}>
                       {blockNames[5]} ({blockWeights[5]}%)
                     </th>
                     <th
@@ -711,56 +776,105 @@ export default function SheetView({
                   </tr>
 
                   {/* Segunda fila de sub-encabezados */}
-                  <tr className="bg-slate-50 text-gray-600 font-bold text-[10px] text-center h-12 border-b-2 border-gray-200">
+                  <tr className="bg-slate-50 text-gray-600 font-bold text-[10px] text-center h-14 border-b-2 border-gray-200">
                     {/* Cotidianas columns */}
-                    {Array.from({ length: 10 }).map((_, idx) => (
-                      <th
-                        key={`c-${idx}`}
-                        className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
-                        style={{ width: "62px", minWidth: "62px" }}
-                        onClick={() => toggleSort("note", idx)}
-                        title={`Ordenar por Nota Cotidiana ${idx + 1}`}
-                      >
-                        <div className="flex items-center justify-center gap-0.5">
-                          <span>C{idx + 1}</span>
-                          {renderSortIndicator("note", idx)}
-                        </div>
-                      </th>
-                    ))}
+                    {Array.from({ length: 10 }).map((_, idx) => {
+                      const customName = state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[idx];
+                      return (
+                        <th
+                          key={`c-${idx}`}
+                          className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                          style={{ width: "72px", minWidth: "72px" }}
+                          onClick={() => toggleSort("note", idx)}
+                          title={`Ordenar por Nota Cotidiana ${idx + 1}`}
+                        >
+                          <div className="flex flex-col items-center justify-center min-h-[44px] h-full py-0.5 select-none w-full">
+                            <div className="flex items-center justify-center gap-0.5 select-none w-full">
+                              <span>C{idx + 1}</span>
+                              {renderSortIndicator("note", idx)}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenActivityEditor(idx);
+                                }}
+                                className="w-4 h-4 rounded-full bg-slate-100 hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                                title={customName ? `Editar: ${customName}` : "Haga clic para poner nombre a la actividad"}
+                              >
+                                a
+                              </button>
+                            </div>
+                            <div 
+                              className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1 ${
+                                customName ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded animate-pulse" : "text-gray-300 italic font-mono"
+                              }`}
+                              title={customName || "Sin Nombre"}
+                            >
+                              {customName || "-"}
+                            </div>
+                          </div>
+                        </th>
+                      );
+                    })}
                     <th
                       className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
                       style={{ width: "72px", minWidth: "72px" }}
                       onClick={() => toggleSort("avgC")}
                       title="Ordenar por Promedio Cotidiano"
                     >
-                      <div className="flex items-center justify-center gap-0.5">
+                      <div className="flex flex-col items-center justify-center">
                         <span>PROM C</span>
                         {renderSortIndicator("avgC")}
                       </div>
                     </th>
 
                     {/* Santillana columns */}
-                    {Array.from({ length: 10 }).map((_, idx) => (
-                      <th
-                        key={`s-${idx}`}
-                        className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
-                        style={{ width: "62px", minWidth: "62px" }}
-                        onClick={() => toggleSort("note", idx + 10)}
-                        title={`Ordenar por Nota Santillana ${idx + 1}`}
-                      >
-                        <div className="flex items-center justify-center gap-0.5">
-                          <span>S{idx + 1}</span>
-                          {renderSortIndicator("note", idx + 10)}
-                        </div>
-                      </th>
-                    ))}
+                    {Array.from({ length: 10 }).map((_, idx) => {
+                      const actualIdx = idx + 10;
+                      const customName = state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[actualIdx];
+                      return (
+                        <th
+                          key={`s-${idx}`}
+                          className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
+                          style={{ width: "72px", minWidth: "72px" }}
+                          onClick={() => toggleSort("note", actualIdx)}
+                          title={`Ordenar por Nota Santillana ${idx + 1}`}
+                        >
+                          <div className="flex flex-col items-center justify-center min-h-[44px] h-full py-0.5 select-none w-full">
+                            <div className="flex items-center justify-center gap-0.5 select-none w-full">
+                              <span>S{idx + 1}</span>
+                              {renderSortIndicator("note", actualIdx)}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenActivityEditor(actualIdx);
+                                }}
+                                className="w-4 h-4 rounded-full bg-slate-100 hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                                title={customName ? `Editar: ${customName}` : "Haga clic para poner nombre a la actividad"}
+                              >
+                                a
+                              </button>
+                            </div>
+                            <div 
+                              className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1 ${
+                                customName ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded animate-pulse" : "text-gray-300 italic font-mono"
+                              }`}
+                              title={customName || "Sin Nombre"}
+                            >
+                              {customName || "-"}
+                            </div>
+                          </div>
+                        </th>
+                      );
+                    })}
                     <th
                       className="bg-blue-100 text-blue-900 border-r border-gray-300 font-black uppercase tracking-tight border-b text-center text-[10px] cursor-pointer select-none hover:bg-blue-200 transition-colors group/th"
                       style={{ width: "72px", minWidth: "72px" }}
                       onClick={() => toggleSort("avgS")}
                       title="Ordenar por Promedio Santillana"
                     >
-                      <div className="flex items-center justify-center gap-0.5">
+                      <div className="flex flex-col items-center justify-center">
                         <span>PROM S</span>
                         {renderSortIndicator("avgS")}
                       </div>
@@ -769,24 +883,66 @@ export default function SheetView({
                     {/* Examen sub columns */}
                     <th
                       className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
-                      style={{ width: "65px", minWidth: "65px" }}
+                      style={{ width: "72px", minWidth: "72px" }}
                       onClick={() => toggleSort("note", 23)}
                       title="Ordenar por Examen Escrito"
                     >
-                      <div className="flex items-center justify-center gap-0.5">
-                        <span>Escrito</span>
-                        {renderSortIndicator("note", 23)}
+                      <div className="flex flex-col items-center justify-center min-h-[44px] h-full py-0.5 select-none w-full">
+                        <div className="flex items-center justify-center gap-0.5 select-none w-full">
+                          <span className="truncate max-w-[40px]">Escrito</span>
+                          {renderSortIndicator("note", 23)}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenActivityEditor(23);
+                            }}
+                            className="w-4 h-4 rounded-full bg-slate-100 hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                            title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[23] ? `Editar: ${state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[23]}` : "Haga clic para poner nombre"}
+                          >
+                            a
+                          </button>
+                        </div>
+                        <div 
+                          className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1 ${
+                            state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[23] ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded" : "text-gray-300 italic font-mono"
+                          }`}
+                          title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[23] || "Sin Nombre"}
+                        >
+                          {state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[23] || "-"}
+                        </div>
                       </div>
                     </th>
                     <th
                       className="border-r border-gray-200 border-b bg-white font-semibold text-center text-gray-500 cursor-pointer select-none hover:bg-slate-100 transition-colors group/th"
-                      style={{ width: "65px", minWidth: "65px" }}
+                      style={{ width: "72px", minWidth: "72px" }}
                       onClick={() => toggleSort("note", 24)}
                       title="Ordenar por Examen Rúbrica"
                     >
-                      <div className="flex items-center justify-center gap-0.5">
-                        <span>Rúbrica</span>
-                        {renderSortIndicator("note", 24)}
+                      <div className="flex flex-col items-center justify-center min-h-[44px] h-full py-0.5 select-none w-full">
+                        <div className="flex items-center justify-center gap-0.5 select-none w-full">
+                          <span className="truncate max-w-[40px]">Rúbrica</span>
+                          {renderSortIndicator("note", 24)}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenActivityEditor(24);
+                            }}
+                            className="w-4 h-4 rounded-full bg-slate-100 hover:bg-indigo-100 text-[9px] font-black flex items-center justify-center text-slate-500 hover:text-indigo-700 transition-colors border border-slate-200 cursor-pointer ml-1 shrink-0"
+                            title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[24] ? `Editar: ${state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[24]}` : "Haga clic para poner nombre"}
+                          >
+                            a
+                          </button>
+                        </div>
+                        <div 
+                          className={`text-[8px] leading-tight truncate w-full px-1 text-center select-none font-bold mt-1 ${
+                            state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[24] ? "text-indigo-600 bg-indigo-50/50 py-0.5 rounded" : "text-gray-300 italic font-mono"
+                          }`}
+                          title={state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[24] || "Sin Nombre"}
+                        >
+                          {state.activityNames?.[state.currentTrim]?.[state.currentGradeId!]?.[24] || "-"}
+                        </div>
                       </div>
                     </th>
                     <th

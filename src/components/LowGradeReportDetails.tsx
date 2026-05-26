@@ -1,5 +1,5 @@
 import { Student, Config } from "../types";
-import { getLowGradesAnalysis, getStudentCompliance, calculateFinal } from "../utils";
+import { getLowGradesAnalysis, getAllGradesAnalysis, getStudentCompliance, calculateFinal, isNoEntregoIncident } from "../utils";
 
 interface LowGradeReportDetailsProps {
   student: Student;
@@ -7,6 +7,7 @@ interface LowGradeReportDetailsProps {
   rankInfo: { rank: number; total: number };
   groupAvg: number;
   activePeriod: string;
+  activityNames?: (string | null)[];
 }
 
 export default function LowGradeReportDetails({
@@ -14,11 +15,13 @@ export default function LowGradeReportDetails({
   config,
   rankInfo,
   groupAvg,
-  activePeriod
+  activePeriod,
+  activityNames
 }: LowGradeReportDetailsProps) {
   const finalNote = calculateFinal(student.notes, config);
   const compliance = getStudentCompliance(student.notes, student.reasons);
-  const lowNotes = getLowGradesAnalysis(student, config);
+  const lowNotes = getLowGradesAnalysis(student, config, activityNames);
+  const allNotes = getAllGradesAnalysis(student, config, activityNames);
 
   // Calculate lowest grade
   const notesList = student.notes.filter((n): n is number => n !== null);
@@ -26,21 +29,17 @@ export default function LowGradeReportDetails({
 
   // Determine standard status level
   let statusText = "Requiere Atención Urgente";
-  let statusColorClass = "text-red-700 bg-red-50 border-red-200";
-  let badgeColorClass = "bg-red-700 text-white";
+  let badgeColorClass = "text-black";
   
   if (finalNote >= 9.0) {
     statusText = "Excelente";
-    statusColorClass = "text-emerald-800 bg-emerald-50 border-emerald-200";
-    badgeColorClass = "bg-emerald-600 text-white";
+    badgeColorClass = "text-black";
   } else if (finalNote >= 8.0) {
     statusText = "Muy Bueno";
-    statusColorClass = "text-blue-800 bg-blue-50 border-blue-200";
-    badgeColorClass = "bg-blue-600 text-white";
+    badgeColorClass = "text-black";
   } else if (finalNote >= 6.5) {
     statusText = "Bueno";
-    statusColorClass = "text-indigo-800 bg-indigo-50 border-indigo-200";
-    badgeColorClass = "bg-indigo-600 text-white";
+    badgeColorClass = "text-black";
   }
 
   // Work done/compliance text
@@ -52,8 +51,8 @@ export default function LowGradeReportDetails({
 
   // Performance comparison with class average
   const comparedToClass = finalNote >= groupAvg 
-    ? `Este promedio sitúa al estudiante por encima de la media académica del grupo de clase (${groupAvg.toFixed(1)}), posicionándose en el puesto #${rankInfo.rank} de un total de ${rankInfo.total} alumnos evaluados.`
-    : `Este promedio sitúa al estudiante por debajo de la media académica del grupo de clase (${groupAvg.toFixed(1)}), ubicándole en el puesto #${rankInfo.rank} de un total de ${rankInfo.total} alumnos evaluados.`;
+    ? `Este promedio sitúa al estudiante por encima de la media académica del grupo de clase (${groupAvg.toFixed(1)}), posicionándose ${rankInfo.rank <= 5 ? `en el puesto #${rankInfo.rank} de un total de ${rankInfo.total} alumnos evaluados.` : "fuera del top 5 del grupo."}`
+    : `Este promedio sitúa al estudiante por debajo de la media académica del grupo de clase (${groupAvg.toFixed(1)}), ubicándole ${rankInfo.rank <= 5 ? `en el puesto #${rankInfo.rank} de un total de ${rankInfo.total} alumnos evaluados.` : "fuera del top 5 del grupo."}`;
 
   textDiagnosis += comparedToClass;
 
@@ -97,39 +96,96 @@ export default function LowGradeReportDetails({
     }
   }
 
+  // Split the allNotes array into HTML elements side-by-side for a high-density, two-column table view
+  const half = Math.ceil(allNotes.length / 2);
+  const leftColNotes = allNotes.slice(0, half);
+  const rightColNotes = allNotes.slice(half);
+
+  const renderTableColumn = (notesChunk: typeof allNotes) => {
+    return (
+      <div className="border border-gray-350 rounded overflow-hidden">
+        <table className="w-full text-[9px] text-left border-collapse font-serif">
+          <thead>
+            <tr className="bg-gray-100 border-b border-gray-350 font-bold text-black h-6">
+              <th className="p-1 px-2.5">Detalle de Actividades</th>
+              <th className="p-1 text-center w-12 border-l border-gray-350">Nota</th>
+              <th className="p-1 px-2.5 border-l border-gray-250 w-28 truncate">Observación</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-250">
+            {notesChunk.map((item, idx) => {
+              const hasLowNote = item.note !== null && item.note < 6.5;
+              
+              let displayNote = "—";
+              let noteColorClass = "text-black font-bold";
+              if (item.note !== null) {
+                displayNote = item.note.toFixed(1);
+                noteColorClass = hasLowNote ? "text-black font-extrabold" : "text-black font-bold";
+              } else if (item.reason) {
+                const isMissed = isNoEntregoIncident(item.reason);
+                if (isMissed) {
+                  displayNote = "0.0";
+                  noteColorClass = "text-black font-extrabold";
+                }
+              }
+
+              return (
+                <tr key={idx} className={`hover:bg-gray-50/50 h-5.5 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/15"}`}>
+                  <td className="p-1 px-2.5 font-medium text-black truncate max-w-[150px]" title={item.activityName}>
+                    {item.activityName}
+                  </td>
+                  <td className={`p-1 text-center border-l border-gray-355 ${noteColorClass}`}>
+                    {displayNote}
+                  </td>
+                  <td className="p-1 px-2.5 italic text-black font-normal border-l border-gray-355 truncate max-w-[115px]" title={item.reason || ""}>
+                    {item.reason || "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3.5 print:space-y-2">
       {/* Sección principal de análisis */}
-      <h4 className="text-xs font-bold text-gray-800 border-b border-gray-400 pb-1 uppercase tracking-wide">
+      <h4 className="text-xs font-bold text-black border-b border-gray-400 pb-1 uppercase tracking-wide">
         Ficha de Rendimiento Académico y Diagnóstico
       </h4>
       
       {/* Unified Metrics Grid */}
       <div className="bg-gray-50/50 border-2 border-black rounded p-3">
-        <span className="font-bold text-gray-800 block mb-2 uppercase text-[10px] tracking-wider text-center">
+        <span className="font-bold text-black block mb-2 uppercase text-[10px] tracking-wider text-center">
           Resumen de Evaluación del Periodo
         </span>
         <div className="grid grid-cols-3 gap-y-2.5 gap-x-4 text-center text-[10px] leading-tight font-serif">
           {/* Col 1 */}
-          <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-gray-500 font-bold block uppercase text-[8px]">Nivel Obtenido</span>
-            <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider mt-1 ${badgeColorClass}`}>
+          <div className="border-r border-gray-300 pr-1 text-center font-serif">
+            <span className="text-black font-bold block uppercase text-[8px]">Nivel Obtenido</span>
+            <span className={`text-[11px] font-black block mt-1 uppercase tracking-wide ${badgeColorClass}`}>
               {statusText}
             </span>
           </div>
 
           {/* Col 2 */}
           <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-gray-500 font-bold block uppercase text-[8px]">Tasa de Entregas</span>
-            <span className="text-[11px] font-black text-gray-800 block mt-1">{compliance.count} <span className="text-[9px] font-normal text-gray-550">/ {compliance.total}</span></span>
-            <span className="text-[8.5px] text-emerald-800 font-extrabold block">({compliance.percentage}% entregado)</span>
+            <span className="text-black font-bold block uppercase text-[8px]">Tasa de Entregas</span>
+            <span className="text-[11px] font-black text-black block mt-1">{compliance.count} <span className="text-[9px] font-normal text-black">/ {compliance.total}</span></span>
+            <span className="text-[8.5px] text-black font-extrabold block">({compliance.percentage}% entregado)</span>
           </div>
 
           {/* Col 3 */}
           <div className="text-center">
-            <span className="text-gray-500 font-bold block uppercase text-[8px]">Lugar en Grupo</span>
-            <span className="text-[11px] font-black text-gray-800 block mt-1">Puesto #{rankInfo.rank}</span>
-            <span className="text-[8.5px] text-gray-500 block">de {rankInfo.total} alumnos</span>
+            <span className="text-black font-bold block uppercase text-[8px]">Lugar en Grupo</span>
+            <span className="text-[11px] font-black text-black block mt-1">
+              {rankInfo.rank <= 5 ? `Puesto #${rankInfo.rank}` : "Fuera del top 5"}
+            </span>
+            <span className="text-[8.5px] text-black block">
+              {rankInfo.rank <= 5 ? `de ${rankInfo.total} alumnos` : "del grupo"}
+            </span>
           </div>
 
           {/* Separator line */}
@@ -137,58 +193,38 @@ export default function LowGradeReportDetails({
 
           {/* Col 4 */}
           <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-gray-500 font-bold block uppercase text-[8px]">Tareas Reprobadas</span>
-            <span className={`text-[11px] font-black block mt-1 ${lowNotes.length > 0 ? "text-red-650" : "text-emerald-700"}`}>
+            <span className="text-black font-bold block uppercase text-[8px]">Tareas Reprobadas</span>
+            <span className="text-[11px] font-black block mt-1 text-black">
               {lowNotes.length} {lowNotes.length === 1 ? "actividad" : "actividades"}
             </span>
-            <span className="text-[8.5px] text-gray-500 block">Calificadas menores a 6.5</span>
+            <span className="text-[8.5px] text-black block">Calificadas menores a 6.5</span>
           </div>
 
           {/* Col 5 */}
           <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-gray-500 font-bold block uppercase text-[8px]">Nota Más Baja</span>
-            <span className={`text-[11px] font-black block mt-1 ${minNote < 6.5 ? "text-red-650" : "text-gray-800"}`}>
+            <span className="text-black font-bold block uppercase text-[8px]">Nota Más Baja</span>
+            <span className="text-[11px] font-black block mt-1 text-black">
               {minNote.toFixed(1)}
             </span>
-            <span className="text-[8.5px] text-gray-500 block">Puntaje mínimo obtenido</span>
+            <span className="text-[8.5px] text-black block">Puntaje mínimo obtenido</span>
           </div>
 
           {/* Col 6 */}
           <div className="text-center">
-            <span className="text-gray-500 font-bold block uppercase text-[8px]">Media del Grupo</span>
-            <span className="text-[11px] font-black text-slate-705 block mt-1">{groupAvg.toFixed(1)}</span>
-            <span className={`text-[8.5px] font-extrabold block uppercase mt-0.5 ${finalNote >= groupAvg ? "text-emerald-700" : "text-red-650"}`}>
+            <span className="text-black font-bold block uppercase text-[8px]">Media del Grupo</span>
+            <span className="text-[11px] font-black text-black block mt-1">{groupAvg.toFixed(1)}</span>
+            <span className="text-[8.5px] font-extrabold block uppercase mt-0.5 text-black">
               {finalNote >= groupAvg ? "Arriba del promedio" : "Abajo del promedio"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Table of specific low activities if they exist */}
-      {lowNotes.length > 0 && (
-        <div className="border border-gray-350 rounded overflow-hidden">
-          <table className="w-full text-[10px] text-left border-collapse font-serif">
-            <thead>
-              <tr className="bg-gray-100 border-b border-gray-350 font-bold text-gray-800 h-6">
-                <th className="p-1 px-2.5">Actividades Reprobadas (Nota inferior a 6.5)</th>
-                <th className="p-1 text-center w-16 border-l border-gray-250">Nota</th>
-                <th className="p-1 px-2.5 border-l border-gray-250">Incidencia de Libreta / Tipo de Observación</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-250">
-              {lowNotes.map((item, idx) => (
-                <tr key={idx} className="hover:bg-gray-50/50 h-5.5">
-                  <td className="p-1 px-2.5 font-medium text-gray-850">{item.activityName}</td>
-                   <td className="p-1 text-center font-black text-red-650 border-l border-gray-250">{item.note.toFixed(1)}</td>
-                  <td className="p-1 px-2.5 italic text-gray-650 font-normal border-l border-gray-250 truncate max-w-xs" title={item.reason || ""}>
-                    {item.reason || "Sin observación o justificación cargada"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Side-by-side Tables Grid */}
+      <div className="grid grid-cols-2 gap-3.5">
+        {renderTableColumn(leftColNotes)}
+        {renderTableColumn(rightColNotes)}
+      </div>
     </div>
   );
 }

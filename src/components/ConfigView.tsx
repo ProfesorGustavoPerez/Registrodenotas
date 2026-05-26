@@ -1,5 +1,30 @@
 import { AppState, Config, Grade } from "../types";
-import { Sliders, Settings, School, Users, GraduationCap, CheckCircle2 } from "lucide-react";
+import { Sliders, Settings, School, Users, GraduationCap, CheckCircle2, Tag, ArrowUpCircle } from "lucide-react";
+
+const incrementVersion = (currentVersion: string, type: 'major' | 'minor'): string => {
+  const version = currentVersion || "2.4";
+  const match = version.match(/^v?(\d+)\.(\d+)/i);
+  if (match) {
+    const major = parseInt(match[1], 10);
+    const minor = parseInt(match[2], 10);
+    if (type === 'major') {
+      return `${major + 1}.0`;
+    } else {
+      return `${major}.${minor + 1}`;
+    }
+  } else {
+    const val = parseFloat(version.replace(/[^\d.]/g, ""));
+    if (!isNaN(val)) {
+      if (type === 'major') {
+        const nextMajor = Math.floor(val) + 1;
+        return `${nextMajor}.0`;
+      } else {
+        return (val + 0.1).toFixed(1);
+      }
+    }
+  }
+  return type === 'major' ? "3.0" : "2.5";
+};
 
 interface ConfigViewProps {
   state: AppState;
@@ -107,6 +132,68 @@ export default function ConfigView({ state, onUpdateConfig, onSave, onPeriodChan
               ))}
               <option value="ANUAL">Resumen Anual</option>
             </select>
+          </div>
+
+          {/* CONTROL DE VERSÍON ACADÉMICA */}
+          <div className="md:col-span-2 border-t border-gray-200 pt-5 mt-3">
+            <div className="flex items-center gap-2 mb-3">
+              <Tag className="w-4 h-4 text-indigo-600" />
+              <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                Versión del Registro Académico
+              </h4>
+              <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-black border border-indigo-200 uppercase">
+                {config.appVersion || "2.4"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <div className="flex flex-col gap-1 justify-center">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Número de Versión</label>
+                <input
+                  type="text"
+                  value={config.appVersion || "2.4"}
+                  onChange={(e) => handleFieldChange("appVersion", e.target.value)}
+                  className="px-3 py-2 text-xs bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] text-center font-bold"
+                  placeholder="Ej. 2.4"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase">Grandes Cambios</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = config.appVersion || "2.4";
+                    const next = incrementVersion(current, "major");
+                    handleFieldChange("appVersion", next);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-xs uppercase cursor-pointer select-none transition-colors shadow-xs"
+                >
+                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                  Cambio Grande (+1.0)
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase">Cambios Pequeños</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = config.appVersion || "2.4";
+                    const next = incrementVersion(current, "minor");
+                    handleFieldChange("appVersion", next);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded text-xs uppercase cursor-pointer select-none transition-colors shadow-2xs"
+                >
+                  <Tag className="w-3.5 h-3.5 text-slate-400" />
+                  Cambio Pequeño (+0.1)
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-gray-500 mt-2.5 leading-relaxed">
+              Mapee el avance de su aplicación: Incremente el número entero principal para <strong>grandes cambios</strong> (nuevos trimestres, ponderaciones globales o reestructuración de estudiantes) o el decimal para <strong>cambios pequeños</strong> (correcciones de notas individuales u observaciones menores).
+            </p>
           </div>
         </div>
       </div>

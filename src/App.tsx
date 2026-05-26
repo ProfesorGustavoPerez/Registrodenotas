@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppState, Student, Config } from "./types";
 import { 
   FolderPlus, Settings, Database, GraduationCap, X, RefreshCw, AlertCircle, Save
 } from "lucide-react";
+import { initAuth, uploadDriveBackup } from "./drive";
 
 // Import modular subviews
 import DashboardView from "./components/DashboardView";
@@ -39,6 +40,7 @@ export default function App() {
         blockWeights: [15, 10, 20, 15, 20, 20],
         grades: [],
         theme: "indigo",
+        appVersion: "2.4",
       },
       currentTrim: "T1",
       currentGradeId: null,
@@ -47,6 +49,21 @@ export default function App() {
       hideInactive: false,
       showListNumberOnly: false,
       data: {},
+      activityNames: {},
+      activityHistory: [
+        "Presentación del Cuaderno",
+        "Proyecto de Ciencias",
+        "Maqueta del Sistema Solar",
+        "Ensayo de Biología",
+        "Disertación Científica",
+        "Glosario de Conceptos",
+        "Organizador Gráfico",
+        "Experimento Práctico",
+        "Exposición Grupal",
+        "Prueba Escrita",
+        "Control de Lectura",
+        "Taller de Ejercicios"
+      ],
     };
 
     // Make sure we have exactly 12 default groups
@@ -130,6 +147,23 @@ export default function App() {
         // Set fallbacks for UI toggles
         if (parsed.hideInactive === undefined) parsed.hideInactive = false;
         if (parsed.showListNumberOnly === undefined) parsed.showListNumberOnly = false;
+        if (!parsed.activityNames) parsed.activityNames = {};
+        if (!parsed.activityHistory) {
+          parsed.activityHistory = [
+            "Presentación del Cuaderno",
+            "Proyecto de Ciencias",
+            "Maqueta del Sistema Solar",
+            "Ensayo de Biología",
+            "Disertación Científica",
+            "Glosario de Conceptos",
+            "Organizador Gráfico",
+            "Experimento Práctico",
+            "Exposición Grupal",
+            "Prueba Escrita",
+            "Control de Lectura",
+            "Taller de Ejercicios"
+          ];
+        }
 
         return parsed;
       }
@@ -151,6 +185,7 @@ export default function App() {
     rename: { gid: string; sid: string } | null;
     delete: { gid: string; sid: string } | null;
     reset: boolean;
+    activityNameEditor: { trim: string; gid: string; nIdx: number } | null;
   }>({
     addBulk: false,
     reason: null,
@@ -158,6 +193,7 @@ export default function App() {
     rename: null,
     delete: null,
     reset: false,
+    activityNameEditor: null,
   });
 
   // Modal manual data state bindings
@@ -166,6 +202,7 @@ export default function App() {
   const [migrateTargetGradeId, setMigrateTargetGradeId] = useState("");
   const [reasonManualText, setReasonManualText] = useState("");
   const [activeReasonOption, setActiveReasonOption] = useState<string | null>(null);
+  const [activityInputValue, setActivityInputValue] = useState("");
 
   const REASON_OPTS = [
     "Presentó Permiso",
@@ -182,6 +219,67 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  // Keep a ref of state to avoid stale closure scopes inside the async auto-backup interval
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // Track the active Google Drive connection for background tasks
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+
+  // Monitor Google OAuth state for automatic sync functions
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (_user, token) => {
+        setGoogleToken(token);
+      },
+      () => {
+        setGoogleToken(null);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Set up 24-hour periodic backup schedule when connected
+  useEffect(() => {
+    if (!googleToken) return;
+
+    const checkAndTriggerBackup = async () => {
+      const STORAGE_AUTO_SYNC_KEY = "ciencias_master_pro_last_sync_ts";
+      const lastSyncStr = localStorage.getItem(STORAGE_AUTO_SYNC_KEY);
+      const lastSync = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+      const now = Date.now();
+
+      // Check if 24 hours (86,400,000 milliseconds) have elapsed
+      if (now - lastSync >= 86400000) {
+        try {
+          const currentState = stateRef.current;
+          const cleanSchool = currentState.config.school.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "_");
+          const cleanTeacher = currentState.config.teacher.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "_");
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const timeStr = new Date().toTimeString().slice(0, 5).replace(":", "h");
+          
+          const filename = `Registro_Backup_${cleanSchool}_${cleanTeacher}_${todayStr}_${timeStr}_Auto.json`;
+          
+          await uploadDriveBackup(googleToken, filename, currentState);
+          
+          localStorage.setItem(STORAGE_AUTO_SYNC_KEY, String(now));
+          showToast("success", "🔄 Copia de seguridad automática guardada en 'Registro de Notas' de su Google Drive.");
+        } catch (err) {
+          console.error("Auto backup execution failed:", err);
+        }
+      }
+    };
+
+    // Process immediately upon connection
+    checkAndTriggerBackup();
+
+    // Recheck check hourly
+    const interval = setInterval(checkAndTriggerBackup, 3600000);
+    return () => clearInterval(interval);
+  }, [googleToken]);
 
   // Handle default starting period selection safely
   useEffect(() => {
@@ -572,6 +670,60 @@ export default function App() {
     });
   };
 
+  // CUSTOM ACTIVITY NAMES MANAGEMENT
+  const openActivityEditor = (trim: string, gid: string, nIdx: number) => {
+    const currentName = state.activityNames?.[trim]?.[gid]?.[nIdx] || "";
+    setActivityInputValue(currentName);
+    setModals(prev => ({
+      ...prev,
+      activityNameEditor: { trim, gid, nIdx }
+    }));
+  };
+
+  const saveActivityName = (newName: string) => {
+    const target = modals.activityNameEditor;
+    if (!target) return;
+
+    const trimmed = newName.trim();
+
+    setState(prev => {
+      const namesCopy = prev.activityNames ? { ...prev.activityNames } : {};
+      if (!namesCopy[target.trim]) namesCopy[target.trim] = {};
+      if (!namesCopy[target.trim][target.gid]) {
+        namesCopy[target.trim][target.gid] = Array(25).fill(null);
+      } else {
+        namesCopy[target.trim][target.gid] = [...namesCopy[target.trim][target.gid]];
+      }
+
+      namesCopy[target.trim][target.gid][target.nIdx] = trimmed || null;
+
+      // Add to history if not exists and has value
+      let historyCopy = [...(prev.activityHistory || [])];
+      if (trimmed && !historyCopy.includes(trimmed)) {
+        historyCopy.unshift(trimmed);
+      }
+
+      return {
+        ...prev,
+        activityNames: namesCopy,
+        activityHistory: historyCopy
+      };
+    });
+
+    setModals(prev => ({ ...prev, activityNameEditor: null }));
+    showToast("success", "Nombre de la actividad actualizado correctamente.");
+  };
+
+  const deleteHistoryItem = (itemToDelete: string) => {
+    setState(prev => {
+      const historyCopy = (prev.activityHistory || []).filter(x => x !== itemToDelete);
+      return {
+        ...prev,
+        activityHistory: historyCopy
+      };
+    });
+  };
+
   // UPDATE INIVIDUAL MAN COMMENTS
   const handleUpdateManualComment = (studentId: string, gradeId: string, text: string) => {
     setState(prev => {
@@ -722,7 +874,7 @@ export default function App() {
             <h1 className="text-sm font-bold tracking-tight text-slate-800 leading-tight">
               {state.config.school}
               <span className="text-[9px] bg-indigo-50 text-indigo-700 py-0.5 px-1.5 rounded font-bold ml-1.5 uppercase border border-indigo-100/40">
-                v2.4
+                {state.config.appVersion || "2.4"}
               </span>
             </h1>
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none mt-1">
@@ -829,6 +981,7 @@ export default function App() {
             onToggleRankings={(visible) => setState(prev => ({ ...prev, showRankings: visible }))}
             onToggleHideInactive={(hide) => setState(prev => ({ ...prev, hideInactive: hide }))}
             onToggleListNumber={(listNum) => setState(prev => ({ ...prev, showListNumberOnly: listNum }))}
+            onOpenActivityEditor={(nIdx) => openActivityEditor(state.currentTrim, state.currentGradeId!, nIdx)}
           />
         )}
 
@@ -1028,7 +1181,7 @@ export default function App() {
       {/* 5. active reason / comment details dialogue overlay */}
       {modals.reason && (
         <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-[var(--primary)] rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+          <div className="bg-white border-2 border-slate-200 rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-gray-100 pb-2">
               <h3 className="text-sm font-black text-[var(--primary)] uppercase tracking-tight">
                 Bitácora de Observaciones de Actividad
@@ -1100,6 +1253,149 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 5.5 Custom Activity Name Dialogue Overlay */}
+      {modals.activityNameEditor && (() => {
+        const target = modals.activityNameEditor;
+        const isExamIndex = target.nIdx >= 23;
+        const historyList = state.activityHistory || [];
+        
+        // Determine title / label of the column for context
+        let blockName = "";
+        if (target.nIdx < 10) {
+          blockName = `${state.config.blockNames[0]} (Actividad ${target.nIdx + 1})`;
+        } else if (target.nIdx < 20) {
+          blockName = `${state.config.blockNames[1]} (Actividad ${target.nIdx - 9})`;
+        } else if (target.nIdx === 20) {
+          blockName = state.config.blockNames[2];
+        } else if (target.nIdx === 21) {
+          blockName = state.config.blockNames[3];
+        } else if (target.nIdx === 22) {
+          blockName = state.config.blockNames[4];
+        } else {
+          blockName = target.nIdx === 23 ? `${state.config.blockNames[5]} - Escrito` : `${state.config.blockNames[5]} - Rúbrica`;
+        }
+
+        return (
+          <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white border-2 border-indigo-600 rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                <h3 className="text-sm font-black text-indigo-700 uppercase tracking-tight flex items-center gap-1.5">
+                  🏷️ Cambiar Nombre de Actividad
+                </h3>
+                <button onClick={() => setModals(prev => ({ ...prev, activityNameEditor: null }))} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-slate-50 p-2.5 rounded text-xs text-slate-700">
+                  Usted está configurando el nombre de: <span className="font-extrabold text-indigo-700">{blockName}</span> para el <span className="font-semibold">{target.trim}</span>.
+                </div>
+
+                {isExamIndex ? (
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-extrabold text-gray-400 uppercase block">Seleccione el Tipo de Evaluación (Examen o Proyecto):</label>
+                    <div className="grid grid-cols-2 gap-3.5">
+                      {["Examen", "Proyecto"].map((opt) => {
+                        const isActive = activityInputValue === opt;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setActivityInputValue(opt)}
+                            className={`py-3 px-4 rounded text-xs font-bold uppercase tracking-tight border text-center cursor-pointer transition-all ${
+                              isActive
+                                ? "bg-indigo-600 border-indigo-700 text-white font-black"
+                                : "bg-white border-gray-200 text-gray-605 hover:bg-slate-50 text-slate-800"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-[10px] font-extrabold text-gray-400 uppercase block mb-1">Escriba el nombre personalizado para esta actividad:</label>
+                      <input
+                        type="text"
+                        value={activityInputValue}
+                        onChange={(e) => setActivityInputValue(e.target.value)}
+                        placeholder="Ej. Taller de Células, Ensayo de Ecología..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            saveActivityName(activityInputValue);
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {historyList.length > 0 && (
+                      <div>
+                        <label className="text-[10px] font-extrabold text-gray-400 uppercase block mb-1.5 font-mono">Sugerencias Historial:</label>
+                        <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-slate-100 rounded p-1.5 bg-slate-50/50">
+                          {historyList.map((histItem, hIdx) => {
+                            const isSelected = activityInputValue === histItem;
+                            return (
+                              <div 
+                                key={`hist-${hIdx}`} 
+                                className={`flex items-center justify-between p-1 px-2 rounded text-xs transition-colors ${
+                                  isSelected ? "bg-indigo-50 border border-indigo-150 text-indigo-950 font-semibold" : "hover:bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setActivityInputValue(histItem)}
+                                  className="flex-1 text-left cursor-pointer truncate"
+                                >
+                                  {histItem}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteHistoryItem(histItem);
+                                  }}
+                                  className="text-slate-400 hover:text-red-600 p-0.5 rounded cursor-pointer ml-2"
+                                  title="Eliminar de mi historial"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => {
+                      setActivityInputValue("");
+                      saveActivityName("");
+                    }}
+                    className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold uppercase rounded cursor-pointer hover:bg-rose-100"
+                  >
+                    🗑️ Quitar Nombre
+                  </button>
+                  <button
+                    onClick={() => saveActivityName(activityInputValue)}
+                    className="px-4 py-2 bg-indigo-600 text-white text-[10px] font-bold uppercase rounded cursor-pointer hover:bg-indigo-700 ml-auto shadow-xs"
+                  >
+                    Aplicar Nombre
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 6. reset warning modal */}
       {modals.reset && (

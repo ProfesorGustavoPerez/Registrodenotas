@@ -22,39 +22,39 @@ export default function DashboardView({ state, onSelectGrade }: DashboardViewPro
   return (
     <div className="space-y-5">
       {/* Tarjetas de Métricas Generales (High Density) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 no-print select-none">
-        <div className="bg-white border border-slate-200 p-3.5 px-5 rounded flex items-center gap-4 shadow-xs">
-          <div className="p-2.5 bg-emerald-50 rounded text-emerald-700 border border-emerald-100">
-            <GraduationCap className="w-5 h-5" />
+      <div className="grid grid-cols-3 gap-2 sm:gap-3.5 no-print select-none">
+        <div className="bg-white border border-slate-200 p-2 sm:p-3.5 sm:px-5 rounded flex items-center gap-2 sm:gap-4 shadow-xs overflow-hidden">
+          <div className="p-1.5 sm:p-2.5 bg-emerald-50 rounded text-emerald-700 border border-emerald-100 flex-shrink-0">
+            <GraduationCap className="w-4 h-4 sm:w-5 h-5" />
           </div>
-          <div>
-            <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 block pb-0.5">Grupos de Trabajo</span>
-            <span className="text-xl font-black text-slate-800 leading-none">
-              {totalGroups} <span className="text-xs font-medium text-slate-400 normal-case ml-1">habilitados</span>
+          <div className="min-w-0">
+            <span className="text-[8px] sm:text-[10px] uppercase font-black tracking-widest text-slate-400 block pb-0.5 truncate">Grupos de Trabajo</span>
+            <span className="text-sm sm:text-xl font-black text-slate-800 leading-none block truncate">
+              {totalGroups}<span className="text-[8px] sm:text-xs font-medium text-slate-400 normal-case ml-0.5 sm:ml-1">hab.</span>
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 p-3.5 px-5 rounded flex items-center gap-4 shadow-xs">
-          <div className="p-2.5 bg-indigo-50 rounded text-indigo-700 border border-indigo-100">
-            <Users className="w-5 h-5" />
+        <div className="bg-white border border-slate-200 p-2 sm:p-3.5 sm:px-5 rounded flex items-center gap-2 sm:gap-4 shadow-xs overflow-hidden">
+          <div className="p-1.5 sm:p-2.5 bg-indigo-50 rounded text-indigo-700 border border-indigo-100 flex-shrink-0">
+            <Users className="w-4 h-4 sm:w-5 h-5" />
           </div>
-          <div>
-            <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 block pb-0.5">Estudiantes Registrados</span>
-            <span className="text-xl font-black text-slate-800 leading-none">
-              {totalStudents} <span className="text-xs font-medium text-slate-400 normal-case ml-1">alumnos</span>
+          <div className="min-w-0">
+            <span className="text-[8px] sm:text-[10px] uppercase font-black tracking-widest text-slate-400 block pb-0.5 truncate">Estudiantes</span>
+            <span className="text-sm sm:text-xl font-black text-slate-800 leading-none block truncate">
+              {totalStudents}<span className="text-[8px] sm:text-xs font-medium text-slate-400 normal-case ml-0.5 sm:ml-1">alum.</span>
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 p-3.5 px-5 rounded flex items-center gap-4 shadow-xs">
-          <div className="p-2.5 bg-amber-50 rounded text-amber-700 border border-amber-100">
-            <CalendarCheck className="w-5 h-5" />
+        <div className="bg-white border border-slate-200 p-2 sm:p-3.5 sm:px-5 rounded flex items-center gap-2 sm:gap-4 shadow-xs overflow-hidden">
+          <div className="p-1.5 sm:p-2.5 bg-amber-50 rounded text-amber-700 border border-amber-100 flex-shrink-0">
+            <CalendarCheck className="w-4 h-4 sm:w-5 h-5" />
           </div>
-          <div>
-            <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 block pb-0.5">Periodos del Ciclo</span>
-            <span className="text-xl font-black text-slate-800 leading-none">
-              {activeTrimsCount} <span className="text-xs font-medium text-slate-400 normal-case ml-1">bloques</span>
+          <div className="min-w-0">
+            <span className="text-[8px] sm:text-[10px] uppercase font-black tracking-widest text-slate-400 block pb-0.5 truncate">Periodos del año</span>
+            <span className="text-sm sm:text-xl font-black text-slate-800 leading-none block truncate">
+              {activeTrimsCount}<span className="text-[8px] sm:text-xs font-medium text-slate-400 normal-case ml-0.5 sm:ml-1">bloq.</span>
             </span>
           </div>
         </div>
