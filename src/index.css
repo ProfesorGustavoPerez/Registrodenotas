@@ -53,7 +53,7 @@
     color: black !important;
     display: block !important;
     box-sizing: border-box !important;
-    zoom: 0.95 !important; /* Elegant modern text scale */
+    zoom: var(--print-zoom, 0.95) !important; /* Elegant customizable text scale */
   }
 
   /* Compacting elements inside ficha-page for perfect single or double page print output */

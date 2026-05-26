@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { AppState, Student } from "../types";
 import { 
   calculateFinal, getAvg, getStudentCompliance, getStudentRank, getGroupAverage 
@@ -21,6 +21,7 @@ export default function FichaView({
   onBack,
   onUpdateManualComment,
 }: FichaViewProps) {
+  const [printScale, setPrintScale] = useState(0.95);
   const g = state.config.grades.find(x => x.id === gradeId);
   
   // Base details reference
@@ -91,14 +92,35 @@ export default function FichaView({
   return (
     <div className="space-y-6">
       {/* Barra de control para volver e imprimir */}
-      <div className="flex justify-center gap-4 border border-gray-200 bg-white p-3 rounded-lg shadow-2xs w-full max-w-2xl mx-auto no-print">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-gray-200 bg-white p-3.5 rounded-lg shadow-2xs w-full max-w-2xl mx-auto no-print">
         <button
           onClick={onBack}
-          className="flex items-center gap-1 px-4 py-2 border border-gray-300 rounded font-bold text-xs uppercase cursor-pointer hover:bg-gray-100 transition-colors"
+          className="flex items-center gap-1 px-4 py-2 border border-gray-300 rounded font-bold text-xs uppercase cursor-pointer hover:bg-gray-100 transition-colors text-gray-700"
         >
           <ArrowLeft className="w-4 h-4" />
           Volver
         </button>
+
+        {/* Ajuste de escala interactivo */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Escala:</span>
+          <div className="flex border border-gray-300 rounded overflow-hidden shadow-2xs">
+            {[1.0, 0.95, 0.90, 0.85, 0.80, 0.75].map((val) => (
+              <button
+                key={val}
+                onClick={() => setPrintScale(val)}
+                className={`px-2 py-1 text-xs font-black cursor-pointer transition-colors ${
+                  printScale === val 
+                    ? "bg-[var(--primary)] text-white" 
+                    : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {Math.round(val * 100)}%
+              </button>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={handlePrint}
           className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors"
@@ -112,10 +134,14 @@ export default function FichaView({
       <div 
         className="ficha-page font-serif mx-auto shadow-md border border-gray-300 p-6 md:p-8 w-full max-w-[21.59cm] min-h-[26.5cm] bg-white text-black text-[11px] flex flex-col justify-between"
         id="ficha-print-element"
+        style={{
+          ["--print-zoom" as any]: printScale,
+          zoom: printScale,
+        }}
       >
         <div className="space-y-4">
           {/* Encabezado Institucional */}
-          <div className="text-center border-b-2 border-double border-black pb-2.5 space-y-1">
+          <div className="text-center border-b-2 border-double border-black pb-2 space-y-0.5">
             <h1 className="text-lg md:text-xl font-bold uppercase tracking-tight text-black">{state.config.school}</h1>
             <p className="text-xs font-bold tracking-wide italic text-black font-serif">INFORME DE RENDIMIENTO ACADÉMICO INDIVIDUAL</p>
             <span className="inline-block px-3 py-0.5 mt-0.5 text-[10px] font-black uppercase tracking-wider bg-gray-100 rounded border border-gray-300 text-black">
@@ -124,7 +150,7 @@ export default function FichaView({
           </div>
 
           {/* Ficha técnica estudiante */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 py-1 text-xs text-black">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-1.5 py-0.5 text-xs text-black">
             <div className="flex justify-between items-end border-b border-dotted border-gray-400">
               <span className="font-bold text-black mr-2 uppercase block">Estudiante:</span>
               <span className="font-extrabold text-sm text-black block truncate">{sBase.name}</span>
@@ -210,23 +236,23 @@ export default function FichaView({
                   });
 
                   return (
-                    <div className="space-y-2.5 print:space-y-2">
-                      <div className="grid grid-cols-2 gap-3.5">
+                    <div className="space-y-2 print:space-y-1.5">
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="border border-black rounded overflow-hidden">
                           <table className="w-full text-center border-collapse">
                             <thead>
-                              <tr className="bg-gray-100 border-b border-black font-bold h-7.5 text-[10px] text-black">
-                                <th className="p-1.5 text-left px-3">Tipo de Evaluación</th>
-                                <th className="p-1.5 border-l border-black w-20">Ponderación</th>
-                                <th className="p-1.5 border-l border-black w-24">Calificación</th>
+                              <tr className="bg-gray-100 border-b border-black font-bold h-6 text-[10px] text-black">
+                                <th className="p-1 text-left px-2.5">Tipo de Evaluación</th>
+                                <th className="p-1 border-l border-black w-20">Ponderación</th>
+                                <th className="p-1 border-l border-black w-24">Calificación</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-black/60">
                               {evaluatedBlocks.slice(0, 3).map((block, idx) => (
-                                <tr key={idx} className="h-7 text-[10px] text-black">
-                                  <td className="p-1.5 text-left px-3 font-semibold truncate">{block.name}</td>
-                                  <td className="p-1.5 border-l border-black text-black font-medium">{block.weight}%</td>
-                                  <td className="p-1.5 border-l border-black font-bold text-black">
+                                <tr key={idx} className="h-5.5 text-[10px] text-black">
+                                  <td className="p-1 text-left px-2.5 font-semibold truncate text-[9.5px]">{block.name}</td>
+                                  <td className="p-1 border-l border-black text-black font-medium text-[9.5px]">{block.weight}%</td>
+                                  <td className="p-1 border-l border-black font-bold text-black text-[9.5px]">
                                     {block.avg.toFixed(1)}
                                   </td>
                                 </tr>
@@ -238,18 +264,18 @@ export default function FichaView({
                         <div className="border border-black rounded overflow-hidden">
                           <table className="w-full text-center border-collapse">
                             <thead>
-                              <tr className="bg-gray-100 border-b border-black font-bold h-7.5 text-[10px] text-black">
-                                <th className="p-1.5 text-left px-3">Tipo de Evaluación</th>
-                                <th className="p-1.5 border-l border-black w-20">Ponderación</th>
-                                <th className="p-1.5 border-l border-black w-24">Calificación</th>
+                              <tr className="bg-gray-100 border-b border-black font-bold h-6 text-[10px] text-black">
+                                <th className="p-1 text-left px-2.5">Tipo de Evaluación</th>
+                                <th className="p-1 border-l border-black w-20">Ponderación</th>
+                                <th className="p-1 border-l border-black w-24">Calificación</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-black/60">
                               {evaluatedBlocks.slice(3, 6).map((block, idx) => (
-                                <tr key={idx} className="h-7 text-[10px] text-black">
-                                  <td className="p-1.5 text-left px-3 font-semibold truncate">{block.name}</td>
-                                  <td className="p-1.5 border-l border-black text-black font-medium">{block.weight}%</td>
-                                  <td className="p-1.5 border-l border-black font-bold text-black">
+                                <tr key={idx} className="h-5.5 text-[10px] text-black">
+                                  <td className="p-1 text-left px-2.5 font-semibold truncate text-[9.5px]">{block.name}</td>
+                                  <td className="p-1 border-l border-black text-black font-medium text-[9.5px]">{block.weight}%</td>
+                                  <td className="p-1 border-l border-black font-bold text-black text-[9.5px]">
                                     {block.avg.toFixed(1)}
                                   </td>
                                 </tr>
@@ -259,11 +285,11 @@ export default function FichaView({
                         </div>
                       </div>
 
-                      <div className="border border-black bg-gray-50/50 rounded p-1.5 flex justify-between items-center text-[10px] font-bold text-black">
-                        <span className="uppercase text-black font-bold font-serif tracking-wider pl-1.5">
+                      <div className="border border-black bg-gray-50/50 rounded p-1 flex justify-between items-center text-[9.5px] font-bold text-black">
+                        <span className="uppercase text-black font-bold font-serif tracking-wider pl-1.5 text-[9px]">
                           PROMEDIO DEL PERIODO OBTENIDO:
                         </span>
-                        <span className="px-4 py-0.5 border border-black bg-white rounded text-[11px] font-black text-black">
+                        <span className="px-3 py-0.5 border border-black bg-white rounded text-[10.5px] font-black text-black">
                           {finalScore.toFixed(1)}
                         </span>
                       </div>

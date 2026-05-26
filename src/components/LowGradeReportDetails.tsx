@@ -104,12 +104,12 @@ export default function LowGradeReportDetails({
   const renderTableColumn = (notesChunk: typeof allNotes) => {
     return (
       <div className="border border-gray-350 rounded overflow-hidden">
-        <table className="w-full text-[9px] text-left border-collapse font-serif">
+        <table className="w-full text-[8.5px] text-left border-collapse font-serif">
           <thead>
-            <tr className="bg-gray-100 border-b border-gray-350 font-bold text-black h-6">
-              <th className="p-1 px-2.5">Detalle de Actividades</th>
-              <th className="p-1 text-center w-12 border-l border-gray-350">Nota</th>
-              <th className="p-1 px-2.5 border-l border-gray-250 w-28 truncate">Observación</th>
+            <tr className="bg-gray-100 border-b border-gray-350 font-bold text-black h-5">
+              <th className="p-0.5 px-2">Detalle de Actividades</th>
+              <th className="p-0.5 text-center w-12 border-l border-gray-350">Nota</th>
+              <th className="p-0.5 px-2 border-l border-gray-250 w-28 truncate">Observación</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-250">
@@ -130,14 +130,14 @@ export default function LowGradeReportDetails({
               }
 
               return (
-                <tr key={idx} className={`hover:bg-gray-50/50 h-5.5 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/15"}`}>
-                  <td className="p-1 px-2.5 font-medium text-black truncate max-w-[150px]" title={item.activityName}>
+                <tr key={idx} className={`hover:bg-gray-50/50 h-4.5 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/15"}`}>
+                  <td className="p-0.5 px-2 font-medium text-black truncate max-w-[150px]" title={item.activityName}>
                     {item.activityName}
                   </td>
-                  <td className={`p-1 text-center border-l border-gray-355 ${noteColorClass}`}>
+                  <td className={`p-0.5 text-center border-l border-gray-355 ${noteColorClass}`}>
                     {displayNote}
                   </td>
-                  <td className="p-1 px-2.5 italic text-black font-normal border-l border-gray-355 truncate max-w-[115px]" title={item.reason || ""}>
+                  <td className="p-0.5 px-2 italic text-black font-normal border-l border-gray-355 truncate max-w-[115px]" title={item.reason || ""}>
                     {item.reason || "—"}
                   </td>
                 </tr>
@@ -150,40 +150,40 @@ export default function LowGradeReportDetails({
   };
 
   return (
-    <div className="space-y-3.5 print:space-y-2">
+    <div className="space-y-2.5 print:space-y-1.5">
       {/* Sección principal de análisis */}
-      <h4 className="text-xs font-bold text-black border-b border-gray-400 pb-1 uppercase tracking-wide">
+      <h4 className="text-[11px] font-bold text-black border-b border-gray-400 pb-0.5 uppercase tracking-wide">
         Ficha de Rendimiento Académico y Diagnóstico
       </h4>
       
       {/* Unified Metrics Grid */}
-      <div className="bg-gray-50/50 border-2 border-black rounded p-3">
-        <span className="font-bold text-black block mb-2 uppercase text-[10px] tracking-wider text-center">
+      <div className="bg-gray-50/50 border-2 border-black rounded p-2">
+        <span className="font-bold text-black block mb-1 uppercase text-[9.5px] tracking-wider text-center">
           Resumen de Evaluación del Periodo
         </span>
-        <div className="grid grid-cols-3 gap-y-2.5 gap-x-4 text-center text-[10px] leading-tight font-serif">
+        <div className="grid grid-cols-3 gap-y-1.5 gap-x-3 text-center text-[9px] leading-tight font-serif">
           {/* Col 1 */}
           <div className="border-r border-gray-300 pr-1 text-center font-serif">
-            <span className="text-black font-bold block uppercase text-[8px]">Nivel Obtenido</span>
-            <span className={`text-[11px] font-black block mt-1 uppercase tracking-wide ${badgeColorClass}`}>
+            <span className="text-black font-bold block uppercase text-[7.5px]">Nivel Obtenido</span>
+            <span className={`text-[10px] font-black block mt-0.5 uppercase tracking-wide ${badgeColorClass}`}>
               {statusText}
             </span>
           </div>
 
           {/* Col 2 */}
           <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-black font-bold block uppercase text-[8px]">Tasa de Entregas</span>
-            <span className="text-[11px] font-black text-black block mt-1">{compliance.count} <span className="text-[9px] font-normal text-black">/ {compliance.total}</span></span>
-            <span className="text-[8.5px] text-black font-extrabold block">({compliance.percentage}% entregado)</span>
+            <span className="text-black font-bold block uppercase text-[7.5px]">Tasa de Entregas</span>
+            <span className="text-[10px] font-black text-black block mt-0.5">{compliance.count} <span className="text-[8px] font-normal text-black">/ {compliance.total}</span></span>
+            <span className="text-[8px] text-black font-extrabold block">({compliance.percentage}% entregado)</span>
           </div>
 
           {/* Col 3 */}
           <div className="text-center">
-            <span className="text-black font-bold block uppercase text-[8px]">Lugar en Grupo</span>
-            <span className="text-[11px] font-black text-black block mt-1">
+            <span className="text-black font-bold block uppercase text-[7.5px]">Lugar en Grupo</span>
+            <span className="text-[10px] font-black text-black block mt-0.5">
               {rankInfo.rank <= 5 ? `Puesto #${rankInfo.rank}` : "Fuera del top 5"}
             </span>
-            <span className="text-[8.5px] text-black block">
+            <span className="text-[8px] text-black block">
               {rankInfo.rank <= 5 ? `de ${rankInfo.total} alumnos` : "del grupo"}
             </span>
           </div>
@@ -193,27 +193,27 @@ export default function LowGradeReportDetails({
 
           {/* Col 4 */}
           <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-black font-bold block uppercase text-[8px]">Tareas Reprobadas</span>
-            <span className="text-[11px] font-black block mt-1 text-black">
+            <span className="text-black font-bold block uppercase text-[7.5px]">Tareas Reprobadas</span>
+            <span className="text-[10px] font-black block mt-0.5 text-black">
               {lowNotes.length} {lowNotes.length === 1 ? "actividad" : "actividades"}
             </span>
-            <span className="text-[8.5px] text-black block">Calificadas menores a 6.5</span>
+            <span className="text-[8px] text-black block">Calificadas menores a 6.5</span>
           </div>
 
           {/* Col 5 */}
           <div className="border-r border-gray-300 pr-1 text-center">
-            <span className="text-black font-bold block uppercase text-[8px]">Nota Más Baja</span>
-            <span className="text-[11px] font-black block mt-1 text-black">
+            <span className="text-black font-bold block uppercase text-[7.5px]">Nota Más Baja</span>
+            <span className="text-[10px] font-black block mt-0.5 text-black">
               {minNote.toFixed(1)}
             </span>
-            <span className="text-[8.5px] text-black block">Puntaje mínimo obtenido</span>
+            <span className="text-[8px] text-black block">Puntaje mínimo obtenido</span>
           </div>
 
           {/* Col 6 */}
           <div className="text-center">
-            <span className="text-black font-bold block uppercase text-[8px]">Media del Grupo</span>
-            <span className="text-[11px] font-black text-black block mt-1">{groupAvg.toFixed(1)}</span>
-            <span className="text-[8.5px] font-extrabold block uppercase mt-0.5 text-black">
+            <span className="text-black font-bold block uppercase text-[7.5px]">Media del Grupo</span>
+            <span className="text-[10px] font-black text-black block mt-0.5">{groupAvg.toFixed(1)}</span>
+            <span className="text-[8px] font-extrabold block uppercase mt-0.5 text-black">
               {finalNote >= groupAvg ? "Arriba del promedio" : "Abajo del promedio"}
             </span>
           </div>
