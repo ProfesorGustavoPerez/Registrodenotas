@@ -1,8 +1,6 @@
 # Registro de Notas - Ejecución Local 🚀
 
-Este proyecto es una aplicación web de alto rendimiento y diseño editorial para el **Registro de Notas e Informes de Rendimiento Académico Individual**. Cuenta con integración de respaldos en la nube utilizando **Firebase Authentication** y **Google Drive API**.
-
-Sigue estos sencillos pasos para instalar y ejecutar esta aplicación de manera 100% local en tu computadora.
+Este proyecto es una aplicación de alto rendimiento y diseño editorial para el **Registro de Notas e Informes de Rendimiento Académico Individual**. Funciona de manera 100% local, autónoma y privada, protegiendo todos tus datos en el almacenamiento interno de tu navegador sin necesidad de bases de datos externas ni servidores.
 
 ---
 
@@ -57,18 +55,23 @@ npm run dev
 - `/src/components/`: Sub-componentes modulares e individuales (vistas de estudiantes, reportes, configuración, etc.).
   - `/src/components/FichaView.tsx`: Diseño y lógica de la hoja de informe (visible y para impresión).
   - `/src/components/LowGradeReportDetails.tsx`: Sección de diagnóstico y ficha técnica de rendimiento.
-- `/src/drive.ts`: Helper de integración para la conexión con la API de Google Drive para respaldar notas.
-- `/firebase-applet-config.json`: Credenciales públicas y seguras de Firebase necesarias para la autenticación de Google. El archivo ya viene pre-configurado y listo para usar en tu localhost de desarrollo.
+  - `/src/components/BackupView.tsx`: Gestión offline de importación y exportación de archivos.
 
 ---
 
-## 🔐 Google Drive y Firebase en Local
+## 💾 Respaldo y Manejo de Datos 100% Offline
 
-La aplicación utiliza un flujo seguro de autenticación por Google para guardar tus plantillas y registros de notas en una carpeta especial llamada **"Registro de Notas"** dentro de tu Google Drive personal.
+Dado que la aplicación funciona localmente, la seguridad de tu información académica es prioritaria y no requiere de conexiones externas ni internet:
 
-**¿Qué pasa al ejecutar localmente?**
-- Firebase Auth aceptará conexiones directas desde tu entorno de desarrollo local (`http://localhost:*`).
-- Al presionar **"Iniciar Sesión con Google"** o **"Respaldar en Google Drive"**, se abrirá una ventana emergente de inicio de sesión estándar de Google para que conectes tu cuenta de forma completamente segura y directa con los servidores de Google.
+### 1. Respaldo Completo en un Clic (.JSON)
+Puedes exportar toda la base de datos de calificaciones (alumnos, promedios, ponderaciones, etc.) a un único archivo `.json`.
+* **Exportar**: Descarga una copia exacta a tu disco local.
+* **Importar**: Permite restaurar toda tu información al instante en cualquier navegador o computadora seleccionando el archivo.
+
+### 2. Plantillas de Evaluación en Excel (.XLSX)
+La aplicación cuenta con integraciones locales de hojas de cálculo:
+* Puedes exportar las planillas de notas a formato `.xlsx` de Excel con todas las ponderaciones de actividades ya formuladas.
+* Puedes calificar o editar nombres sin conexión a internet y posteriormente volver a cargar el archivo a la aplicación para actualizar la base de datos automáticamente.
 
 ---
 

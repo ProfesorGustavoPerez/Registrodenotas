@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { AppState, Student, Config } from "./types";
 import { 
   FolderPlus, Settings, Database, GraduationCap, X, RefreshCw, AlertCircle, Save
 } from "lucide-react";
-import { initAuth, uploadDriveBackup } from "./drive";
 
 // Import modular subviews
 import DashboardView from "./components/DashboardView";
@@ -219,67 +218,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
-
-  // Keep a ref of state to avoid stale closure scopes inside the async auto-backup interval
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-
-  // Track the active Google Drive connection for background tasks
-  const [googleToken, setGoogleToken] = useState<string | null>(null);
-
-  // Monitor Google OAuth state for automatic sync functions
-  useEffect(() => {
-    const unsubscribe = initAuth(
-      (_user, token) => {
-        setGoogleToken(token);
-      },
-      () => {
-        setGoogleToken(null);
-      }
-    );
-    return () => unsubscribe();
-  }, []);
-
-  // Set up 24-hour periodic backup schedule when connected
-  useEffect(() => {
-    if (!googleToken) return;
-
-    const checkAndTriggerBackup = async () => {
-      const STORAGE_AUTO_SYNC_KEY = "ciencias_master_pro_last_sync_ts";
-      const lastSyncStr = localStorage.getItem(STORAGE_AUTO_SYNC_KEY);
-      const lastSync = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
-      const now = Date.now();
-
-      // Check if 24 hours (86,400,000 milliseconds) have elapsed
-      if (now - lastSync >= 86400000) {
-        try {
-          const currentState = stateRef.current;
-          const cleanSchool = currentState.config.school.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "_");
-          const cleanTeacher = currentState.config.teacher.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "_");
-          const todayStr = new Date().toISOString().slice(0, 10);
-          const timeStr = new Date().toTimeString().slice(0, 5).replace(":", "h");
-          
-          const filename = `Registro_Backup_${cleanSchool}_${cleanTeacher}_${todayStr}_${timeStr}_Auto.json`;
-          
-          await uploadDriveBackup(googleToken, filename, currentState);
-          
-          localStorage.setItem(STORAGE_AUTO_SYNC_KEY, String(now));
-          showToast("success", "🔄 Copia de seguridad automática guardada en 'Registro de Notas' de su Google Drive.");
-        } catch (err) {
-          console.error("Auto backup execution failed:", err);
-        }
-      }
-    };
-
-    // Process immediately upon connection
-    checkAndTriggerBackup();
-
-    // Recheck check hourly
-    const interval = setInterval(checkAndTriggerBackup, 3600000);
-    return () => clearInterval(interval);
-  }, [googleToken]);
 
   // Handle default starting period selection safely
   useEffect(() => {
