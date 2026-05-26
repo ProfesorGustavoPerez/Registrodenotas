@@ -4,8 +4,7 @@ import {
   calculateFinal, getAvg, getStudentCompliance, getStudentRank, getGroupAverage, findStudentForPeriod
 } from "../utils";
 import LowGradeReportDetails from "./LowGradeReportDetails";
-import { Printer, ArrowLeft, ChevronLeft, ChevronRight, FileText, Download } from "lucide-react";
-import { downloadElementsAsPDF } from "../utils/pdfGenerator";
+import { Printer, ArrowLeft, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 
 interface FichaViewProps {
   state: AppState;
@@ -87,23 +86,7 @@ export default function FichaView({
       })()
     : calculateFinal(sPeriod.notes, state.config);
 
-  const [isDownloading, setIsDownloading] = useState(false);
 
-  const handleDownload = async () => {
-    const el = document.getElementById("ficha-print-element");
-    if (!el) return;
-    setIsDownloading(true);
-    try {
-      const periodStr = isAnual ? "Resumen-Anual" : `Periodo-${activePeriod.replace("T", "")}`;
-      // Filename format as letter size PDF
-      const filename = `Informe_${subject}_${g?.label || "Grado"}_${sBase.name.replace(/\s+/g, "_")}_${periodStr}.pdf`;
-      await downloadElementsAsPDF([el], filename);
-    } catch (err) {
-      console.error("Error generating PDF:", err);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   const handlePrint = () => {
     const originalTitle = document.title;
@@ -198,18 +181,7 @@ export default function FichaView({
             </button>
           )}
 
-          <button
-            onClick={handleDownload}
-            disabled={isDownloading}
-            className={`flex items-center gap-1.5 px-4 py-2 text-white font-bold rounded text-xs uppercase cursor-pointer transition-colors shadow-sm ${
-              isDownloading 
-                ? "bg-slate-400 cursor-not-allowed" 
-                : "bg-indigo-600 hover:bg-indigo-700"
-            }`}
-          >
-            <Download className="w-4 h-4" />
-            {isDownloading ? "Descargando..." : "Descargar Reporte"}
-          </button>
+
 
           <button
             onClick={handlePrint}
